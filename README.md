@@ -29,6 +29,3 @@ ngrok http 3000
 5. **Interactivity & Shortcuts** -> Enable -> set Request URL
 6. In Slack, create an admin channel and invite the bot: `/invite @DeptAgent`
 7. Copy channel ID (click channel name -> bottom of popup) -> set as `SLACK_ADMIN_CHANNEL_ID` in `.env.local`
-
-<!-- paths-filter validation: this non-docs edit should NOT trigger the Deploy Documentation workflow -->
-
