@@ -1,0 +1,42 @@
+site_name: DeptAgent Documentation
+site_description: Department-level AI agent orchestration platform
+repo_url: https://github.com/jtl4098/deptagent
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Capabilities:
+      - Agent Orchestration:
+          - Overview: capabilities/agent-orchestration/overview.md
+          - Architecture: capabilities/agent-orchestration/architecture.md
