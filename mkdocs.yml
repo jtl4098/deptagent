@@ -40,3 +40,5 @@ nav:
       - Agent Orchestration:
           - Overview: capabilities/agent-orchestration/overview.md
           - Architecture: capabilities/agent-orchestration/architecture.md
+  - Reference:
+      - Documentation System: reference/documentation-system.md

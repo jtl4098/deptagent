@@ -18,6 +18,11 @@ package level. Each capability has at most four document types:
 - [Agent Orchestration](capabilities/agent-orchestration/overview.md) — how an
   employee message becomes a routed conversation with the right specialized agent.
 
+## Reference
+
+- [Documentation System](reference/documentation-system.md) — how this site is
+  built, deployed, and kept in sync with the code.
+
 ## Audience
 
 These docs are written for a developer or technical product manager with some

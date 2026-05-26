@@ -42,3 +42,6 @@ next-env.d.ts
 
 # MkDocs PoC local virtualenv
 .venv-docs/
+
+# MkDocs build output (built in CI for deploy; never committed)
+site/
