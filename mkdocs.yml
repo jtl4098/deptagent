@@ -34,6 +34,13 @@ markdown_extensions:
   - toc:
       permalink: true
 
+# agent-context.md and _agent-index.md are LLM-targeted documentation,
+# not for human readers; they are read by the docs-sync workflow and
+# other agents but excluded from the published site.
+exclude_docs: |
+  **/agent-context.md
+  _agent-index.md
+
 nav:
   - Home: index.md
   - Capabilities:
