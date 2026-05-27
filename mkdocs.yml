@@ -49,3 +49,4 @@ nav:
           - Architecture: capabilities/agent-orchestration/architecture.md
   - Reference:
       - Documentation System: reference/documentation-system.md
+      - agent-context Validation: reference/agent-context-validation.md

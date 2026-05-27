@@ -1,0 +1,79 @@
+{
+  "capability": "agent-orchestration",
+  "model": "claude-sonnet-4-6",
+  "schema_notes": "Each question targets a specific category. answer_key is the ground-truth answer derived from the source code. control questions have an answer that is NOT in any condition's context; the model should explicitly say it lacks the information.",
+  "questions": [
+    {
+      "id": "q01",
+      "category": "invariant",
+      "question": "What happens if the orchestrator LLM returns invalid JSON when routing a message?",
+      "answer_key": "The route() function silently falls back to the configured fallback agent (handbook_agent if present, otherwise the first enabled agent). The error is caught by a try/catch around the JSON.parse call; no exception is thrown to callers. The reasoning field contains a fallback marker like 'fallback: invalid response format' or 'fallback: routing error'."
+    },
+    {
+      "id": "q02",
+      "category": "invariant",
+      "question": "How many tool-call steps can an agent take per single request?",
+      "answer_key": "The tool-call loop is capped at 3 steps. This is enforced by passing stopWhen: stepCountIs(3) to generateText inside runAgent (src/core/agent-runner.ts around line 50)."
+    },
+    {
+      "id": "q03",
+      "category": "invariant",
+      "question": "If an employee types a message containing the phrase 'I want to talk to a human' followed by a real HR question, will the HR question reach an agent?",
+      "answer_key": "No. The escalation keyword check runs BEFORE the orchestrator (in the chat route handler), and if any keyword matches, the conversation is escalated and a fixed response is returned. The orchestrator and runAgent are not invoked at all for that message."
+    },
+    {
+      "id": "q04",
+      "category": "contract",
+      "question": "What is the return type of the route() function?",
+      "answer_key": "Promise<{ agent: string, reasoning: string }>. The agent field is the routed agent's ID (string), and reasoning is a brief explanation string."
+    },
+    {
+      "id": "q05",
+      "category": "contract",
+      "question": "Does runAgent always return an approvalId in its result?",
+      "answer_key": "No. approvalId is optional. It is only set when the agent invoked the create_approval_request tool successfully during its run. For agents without tools or runs that did not call that tool, approvalId is undefined."
+    },
+    {
+      "id": "q06",
+      "category": "gotcha",
+      "question": "When the orchestrator's JSON parse fails, is anything logged or otherwise observable from outside?",
+      "answer_key": "No. The error is caught silently and the fallback agent ID is returned. There is no console.log, no metric, no error trace surfaced. From the outside it looks identical to a successful routing decision to the fallback agent."
+    },
+    {
+      "id": "q07",
+      "category": "gotcha",
+      "question": "If an admin enables a new agent via the admin UI, when does it start being eligible for routing?",
+      "answer_key": "On the very next chat message. There is no in-memory cache of the agent list; getEnabledAgentConfigs is called from DB on every routing invocation. The admin change takes effect immediately on the next request."
+    },
+    {
+      "id": "q08",
+      "category": "common_change",
+      "question": "I want to add a new built-in agent type (e.g., 'finance_agent'). What files do I most likely need to touch?",
+      "answer_key": "At minimum: src/agents/types.ts (or wherever the AgentConfig types live) and a DB seed/migration to add the agent row in the agents table. Additionally, src/app/admin/components/new-agent-view.tsx (and related admin UI) if the type needs to be exposed in the admin UI."
+    },
+    {
+      "id": "q09",
+      "category": "common_change",
+      "question": "Where do I change the tool-call step depth (currently 3)?",
+      "answer_key": "In src/core/agent-runner.ts, the stopWhen: stepCountIs(3) parameter passed to generateText (around line 50). Change the literal 3 to the desired number."
+    },
+    {
+      "id": "q10",
+      "category": "cross_ref",
+      "question": "How does posting a new announcement via the admin UI end up affecting an agent's behavior?",
+      "answer_key": "Active announcements are read from the DB by agent-runner on every request (getActiveAnnouncements), formatted as a bulleted list with priority tags, and prepended to the agent's system prompt under an 'Active Announcements' section. Every agent invocation pays for this re-read; there is no cache."
+    },
+    {
+      "id": "q11",
+      "category": "cross_ref",
+      "question": "Where do an agent's tools get bound to the LLM call when runAgent executes?",
+      "answer_key": "In agent-runner.ts, runAgent calls agent.getTools(conversationId) to get the ToolSet for the current request. The getTools function is defined in src/agents/index.ts (rowToAgentConfig), which reads getToolsForAgent from the DB and instantiates each tool from BUILTIN_TOOLS using the conversationId and current request types."
+    },
+    {
+      "id": "q12",
+      "category": "control",
+      "question": "What is the Slack admin channel ID used to receive escalation notifications, and where is it configured?",
+      "answer_key": "This information is NOT in the agent-orchestration context. It belongs to the slack-integration capability (set via the SLACK_ADMIN_CHANNEL_ID environment variable, used in src/lib/slack.ts). A correct response should explicitly state that this is outside the provided context, not guess or fabricate a channel ID."
+    }
+  ]
+}
