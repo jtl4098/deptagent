@@ -1,0 +1,596 @@
+{
+  "capability": "agent-orchestration",
+  "model": "claude-sonnet-4-6",
+  "timestamp": "2026-05-27T17:33:58.971Z",
+  "raw_code_files": [
+    "src/core/orchestrator.ts",
+    "src/core/agent-runner.ts",
+    "src/core/escalation-detector.ts",
+    "src/app/api/chat/route.ts",
+    "src/agents/index.ts",
+    "src/agents/types.ts"
+  ],
+  "agent_context_file": "docs/capabilities/agent-orchestration/agent-context.md",
+  "context_chars": {
+    "A_agent_context_only": 6439,
+    "B_raw_code_only": 10199,
+    "C_combined": 16677
+  },
+  "per_question": [
+    {
+      "id": "q01",
+      "category": "invariant",
+      "question": "What happens if the orchestrator LLM returns invalid JSON when routing a message?",
+      "answer_key": "The route() function silently falls back to the configured fallback agent (handbook_agent if present, otherwise the first enabled agent). The error is caught by a try/catch around the JSON.parse call; no exception is thrown to callers. The reasoning field contains a fallback marker like 'fallback: invalid response format' or 'fallback: routing error'.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the context provided, the orchestrator silently falls back to the default agent (either `handbook_agent` or the first enabled agent) when JSON parsing fails. This is enforced by `src/core/orchestrator.ts:46-61` per the `routing-always-returns-agent` invariant, which states that `route()` never throws to callers.\n\nCritically, there is a noted gotcha: **this failure is completely silent — no log, no metric**. The user gets a response from the fallback agent with no indication that routing failed, and there's no way to detect or measure how often this is happening. The context explicitly recommends adding observability before trusting any routing data.",
+          "input_tokens": 2049,
+          "output_tokens": 156,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the silent fallback to handbook_agent or first enabled agent, that route() never throws to callers, and adds relevant context about the observability concern mentioned in the source material.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 509,
+          "judge_output_tokens": 56
+        },
+        "B_raw_code_only": {
+          "response": "Based on `src/core/orchestrator.ts`, the `route` function wraps the LLM call and `JSON.parse` in a `try/catch` block. If the LLM returns invalid JSON, `JSON.parse` will throw, which is caught and returns `{ agent: fallbackAgentId, reasoning: \"fallback: routing error\" }`.\n\nThere's also a secondary check: if the JSON parses successfully but `parsed.agent` is missing or not a string, it returns `{ agent: fallbackAgentId, reasoning: \"fallback: invalid response format\" }`.\n\nIn both cases, `fallbackAgentId` is either the `handbook_agent` (if enabled) or the first agent in the enabled agents list, as determined in `buildOrchestratorPrompt`.",
+          "input_tokens": 3261,
+          "output_tokens": 183,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the try/catch mechanism, the fallback agent selection logic (handbook_agent or first enabled agent), and both reasoning field values ('fallback: routing error' for JSON parse errors and 'fallback: invalid response format' for missing/invalid agent field), matching all key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 536,
+          "judge_output_tokens": 82
+        },
+        "C_combined": {
+          "response": "When the orchestrator LLM returns invalid JSON, `JSON.parse(text.trim())` throws an exception, which is caught by the `try/catch` block in `route()`. The function then returns `{ agent: fallbackAgentId, reasoning: \"fallback: routing error\" }`, where `fallbackAgentId` is either `handbook_agent` (if that agent is enabled) or the first enabled agent in the list.\n\nOne important gotcha flagged in the codebase: this failure is **completely silent** — no log, no metric is emitted. As the gotchas section notes: *\"Orchestrator JSON parse failure silently falls back to the default agent. No log, no metric. Add observability before trusting routing data.\"*",
+          "input_tokens": 5196,
+          "output_tokens": 171,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the try/catch mechanism, the silent fallback behavior, the fallback agent selection logic (handbook_agent or first enabled agent), and the reasoning field containing 'fallback: routing error', matching all key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 524,
+          "judge_output_tokens": 68
+        }
+      }
+    },
+    {
+      "id": "q02",
+      "category": "invariant",
+      "question": "How many tool-call steps can an agent take per single request?",
+      "answer_key": "The tool-call loop is capped at 3 steps. This is enforced by passing stopWhen: stepCountIs(3) to generateText inside runAgent (src/core/agent-runner.ts around line 50).",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "The tool-call loop is capped at **3 steps** per request, enforced at `src/core/agent-runner.ts:50`.",
+          "input_tokens": 2046,
+          "output_tokens": 36,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the 3-step cap and the file location, matching the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 359,
+          "judge_output_tokens": 35
+        },
+        "B_raw_code_only": {
+          "response": "Based on `src/core/agent-runner.ts`, the agent is limited to **3 steps** per request, enforced by the `stopWhen: stepCountIs(3)` parameter passed to `generateText`. This limit only applies when the agent has tools configured — if no tools are present, a simpler `generateText` call is made with no step limit (but also no tool-calling capability).",
+          "input_tokens": 3258,
+          "output_tokens": 92,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the 3-step cap and the stepCountIs(3) mechanism, matching the answer key exactly, with additional accurate context about the no-tools case.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 415,
+          "judge_output_tokens": 52
+        },
+        "C_combined": {
+          "response": "The tool-call loop is capped at **3 steps** per request, enforced by `stopWhen: stepCountIs(3)` in `src/core/agent-runner.ts:50`.",
+          "input_tokens": 5193,
+          "output_tokens": 49,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the 3-step cap and the exact mechanism (stopWhen: stepCountIs(3)) and file location.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 372,
+          "judge_output_tokens": 44
+        }
+      }
+    },
+    {
+      "id": "q03",
+      "category": "invariant",
+      "question": "If an employee types a message containing the phrase 'I want to talk to a human' followed by a real HR question, will the HR question reach an agent?",
+      "answer_key": "No. The escalation keyword check runs BEFORE the orchestrator (in the chat route handler), and if any keyword matches, the conversation is escalated and a fixed response is returned. The orchestrator and runAgent are not invoked at all for that message.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "No, the HR question will not reach an agent.\n\n`shouldEscalate` is a pure keyword substring-match that runs **before** the orchestrator (invariant: `escalation-before-routing`). It lower-cases the full message and checks for matching keywords, so if `'i want to talk to a human'` (or a similar phrase) is in the keyword list in `src/core/escalation-detector.ts`, the entire message — including the appended HR question — is short-circuited at the escalation check. The pipeline never reaches `route()` or `runAgent()`.\n\nThe key gotcha here is that the escalation detector operates on the **whole message string** as a single unit; there's no way to \"split\" the escalating phrase from the legitimate question that follows it in the same message.",
+          "input_tokens": 2066,
+          "output_tokens": 186,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly states that the HR question will not reach an agent, explains that escalation checking runs before the orchestrator, and notes that the entire message is short-circuited without invoking the orchestrator or runAgent.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 532,
+          "judge_output_tokens": 61
+        },
+        "B_raw_code_only": {
+          "response": "No, the HR question will not reach an agent.\n\nThe escalation check in `chat/route.ts` runs **before** routing to any agent, and it uses a simple keyword match via `shouldEscalate`. The phrase \"talk to a human\" is in the `ESCALATION_KEYWORDS` list in `escalation-detector.ts`, so the entire message triggers an escalation immediately. Once that happens, the code returns early with the escalation response — the `route()` and `runAgent()` calls are never reached.\n\nAdditionally, on any **subsequent** messages in the same conversation, the code first checks `getEscalationByConversationId` and, if the escalation is still `\"open\"`, returns the \"please wait\" response without routing to an agent either. So the employee is effectively blocked from reaching an agent until the escalation is resolved.",
+          "input_tokens": 3278,
+          "output_tokens": 194,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that the escalation check runs before the orchestrator, that the keyword match causes an early return, and that runAgent/route() are never invoked, matching the answer key fully and adding accurate additional detail.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 540,
+          "judge_output_tokens": 62
+        },
+        "C_combined": {
+          "response": "No, the HR question will not reach an agent.\n\n`shouldEscalate` does a simple substring match on the entire lowercased message. Since \"talk to a human\" is in the `ESCALATION_KEYWORDS` list, it will match on the combined message and `escalationCheck.escalate` will be `true`. The chat route then immediately creates an escalation record and returns the escalation response — the code returns early at that point (`src/app/api/chat/route.ts:67-89`) and never calls `route()` or `runAgent()`. The HR question in the same message is silently ignored.",
+          "input_tokens": 5213,
+          "output_tokens": 142,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly explains that the escalation check runs before the orchestrator, matches the keyword, returns early, and never calls the agent — fully consistent with the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 488,
+          "judge_output_tokens": 50
+        }
+      }
+    },
+    {
+      "id": "q04",
+      "category": "contract",
+      "question": "What is the return type of the route() function?",
+      "answer_key": "Promise<{ agent: string, reasoning: string }>. The agent field is the routed agent's ID (string), and reasoning is a brief explanation string.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the contracts section in the context, `route()` returns `{ agent: string, reasoning: string }`.",
+          "input_tokens": 2043,
+          "output_tokens": 28,
+          "judge_score": 1,
+          "judge_reasoning": "The candidate correctly identifies the shape of the return object but omits that it is a Promise (i.e., Promise<{ agent: string, reasoning: string }>).",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 331,
+          "judge_output_tokens": 50
+        },
+        "B_raw_code_only": {
+          "response": "Based on `src/core/orchestrator.ts`, the `route()` function returns a `Promise<{ agent: string; reasoning: string }>`.",
+          "input_tokens": 3255,
+          "output_tokens": 37,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies the return type as Promise<{ agent: string; reasoning: string }>, matching the answer key exactly.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 340,
+          "judge_output_tokens": 40
+        },
+        "C_combined": {
+          "response": "Based on `src/core/orchestrator.ts:39`, `route()` returns a `Promise<{ agent: string; reasoning: string }>`.",
+          "input_tokens": 5190,
+          "output_tokens": 37,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies the return type as Promise<{ agent: string; reasoning: string }>, matching the answer key exactly.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 340,
+          "judge_output_tokens": 40
+        }
+      }
+    },
+    {
+      "id": "q05",
+      "category": "contract",
+      "question": "Does runAgent always return an approvalId in its result?",
+      "answer_key": "No. approvalId is optional. It is only set when the agent invoked the create_approval_request tool successfully during its run. For agents without tools or runs that did not call that tool, approvalId is undefined.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "No. The `approvalId` is optional in the return type (`approvalId?: string`) and is only populated if the `create_approval_request` tool is invoked during the agent's tool-call loop. If no tool call triggers that tool, `approvalId` will be absent from the result.",
+          "input_tokens": 2045,
+          "output_tokens": 70,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly states that approvalId is optional, only present when the create_approval_request tool is invoked, and absent otherwise, which matches the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 389,
+          "judge_output_tokens": 50
+        },
+        "B_raw_code_only": {
+          "response": "No. `approvalId` is only set if the agent has tools, a tool named `create_approval_request` is called during execution, and that tool's output contains a non-falsy `approvalId`. In the no-tools branch, `runAgent` returns `{ response: text, agentId: agent.id }` with no `approvalId` at all. Even in the tools branch, `approvalId` remains `undefined` unless the specific `create_approval_request` tool is invoked and returns a valid `approvalId`.",
+          "input_tokens": 3257,
+          "output_tokens": 125,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly states that approvalId is optional and only set when the create_approval_request tool is called successfully, matching the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 444,
+          "judge_output_tokens": 45
+        },
+        "C_combined": {
+          "response": "No. `approvalId` is only returned if two conditions are met: the agent has at least one tool bound to it, **and** the `create_approval_request` tool is actually invoked during the tool-call loop. If the agent has no tools, the code takes the early `!hasTools` branch and returns `{ response: text, agentId: agent.id }` with no `approvalId` at all. Even when tools are present, `approvalId` remains `undefined` unless a step result contains a `create_approval_request` tool call with a valid `output.approvalId`.",
+          "input_tokens": 5192,
+          "output_tokens": 138,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that approvalId is optional and only present when the create_approval_request tool is successfully invoked, matching the answer key's key facts.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 457,
+          "judge_output_tokens": 49
+        }
+      }
+    },
+    {
+      "id": "q06",
+      "category": "gotcha",
+      "question": "When the orchestrator's JSON parse fails, is anything logged or otherwise observable from outside?",
+      "answer_key": "No. The error is caught silently and the fallback agent ID is returned. There is no console.log, no metric, no error trace surfaced. From the outside it looks identical to a successful routing decision to the fallback agent.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "No. Per the gotchas in the context: *\"Orchestrator JSON parse failure silently falls back to the default agent. No log, no metric.\"* The failure is completely invisible from outside — the caller simply receives a response from the fallback agent (handbook_agent or first enabled agent) with no indication that routing failed. The context explicitly flags this as a problem, noting you should *\"Add observability before trusting routing data.\"*",
+          "input_tokens": 2050,
+          "output_tokens": 97,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that JSON parse failures are caught silently with no logging or metrics, and the fallback agent is returned, making it indistinguishable from a successful routing decision.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 423,
+          "judge_output_tokens": 54
+        },
+        "B_raw_code_only": {
+          "response": "Based on the provided code, **no** — when the JSON parse fails in `route()`, the `catch` block in `orchestrator.ts` silently returns `{ agent: fallbackAgentId, reasoning: \"fallback: routing error\" }` with no `console.error`, logging, or re-throw. The only external signal is that the `reasoning` field in the returned object contains the string `\"fallback: routing error\"`, but looking at `chat/route.ts`, only `agentId` is destructured from the result of `route()` — the `reasoning` field is never used or surfaced to the client. So the failure is entirely invisible from outside.",
+          "input_tokens": 3262,
+          "output_tokens": 152,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies that the error is caught silently, no logging occurs, and the failure is invisible from outside, matching the answer key perfectly. It also adds accurate detail about the reasoning field not being surfaced.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 478,
+          "judge_output_tokens": 58
+        },
+        "C_combined": {
+          "response": "No. Looking at `src/core/orchestrator.ts:46-61`, the `catch` block silently returns `{ agent: fallbackAgentId, reasoning: \"fallback: routing error\" }` with no `console.error`, no metric, and no re-throw. The only externally visible effect is that the fallback agent handles the message instead of a specialized one — which is indistinguishable from a correct routing decision to the fallback.\n\nThe agent-context gotchas explicitly call this out: *\"Orchestrator JSON parse failure silently falls back to the default agent. No log, no metric. Add observability before trusting routing data.\"*",
+          "input_tokens": 5197,
+          "output_tokens": 150,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that the error is caught silently with no logging, metrics, or error traces, and that the fallback agent is returned making it indistinguishable from a successful routing decision.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 476,
+          "judge_output_tokens": 57
+        }
+      }
+    },
+    {
+      "id": "q07",
+      "category": "gotcha",
+      "question": "If an admin enables a new agent via the admin UI, when does it start being eligible for routing?",
+      "answer_key": "On the very next chat message. There is no in-memory cache of the agent list; getEnabledAgentConfigs is called from DB on every routing invocation. The admin change takes effect immediately on the next request.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the invariant `per-message-fresh-agent-list` and the gotcha note, `getEnabledAgentConfigs` runs on every routing call with no in-memory cache. This means the new agent becomes eligible for routing on the very next message received after the admin saves the change — there is no restart or cache flush required.",
+          "input_tokens": 2053,
+          "output_tokens": 78,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that the new agent becomes eligible on the very next message, explains that getEnabledAgentConfigs is called on every routing invocation with no in-memory cache, and notes no restart or cache flush is required, matching the answer key completely.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 405,
+          "judge_output_tokens": 71
+        },
+        "B_raw_code_only": {
+          "response": "Based on the codebase, a newly enabled agent becomes eligible for routing **immediately on the next incoming request** — there is no caching layer in the path.\n\nIn `buildOrchestratorPrompt()` in `orchestrator.ts`, `getEnabledAgentConfigs()` is called fresh on every invocation of `route()`, which itself is called on every POST to `/api/chat`. Similarly, `getAgentById()` in `agents/index.ts` calls `getAgentConfig()` directly from the DB each time.\n\nSo the moment an admin flips an agent to enabled in the database, the very next chat request will include that agent in the routing prompt and be able to dispatch to it.",
+          "input_tokens": 3265,
+          "output_tokens": 162,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that the agent becomes eligible immediately on the next request, explains the lack of caching, and accurately references getEnabledAgentConfigs being called fresh on every routing invocation.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 489,
+          "judge_output_tokens": 57
+        },
+        "C_combined": {
+          "response": "Based on the invariant `per-message-fresh-agent-list` and the corresponding gotcha in the context:\n\n`getEnabledAgentConfigs()` is called on every single routing request with no in-memory cache (`src/core/orchestrator.ts:8`). This means the new agent becomes eligible for routing on the **very next message** sent after the admin enables it — there is no restart, cache invalidation, or delay required. The context explicitly notes this is intentional.",
+          "input_tokens": 5200,
+          "output_tokens": 111,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that the new agent becomes eligible on the very next message, explains the lack of in-memory cache, and notes that getEnabledAgentConfigs is called on every routing request.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 438,
+          "judge_output_tokens": 58
+        }
+      }
+    },
+    {
+      "id": "q08",
+      "category": "common_change",
+      "question": "I want to add a new built-in agent type (e.g., 'finance_agent'). What files do I most likely need to touch?",
+      "answer_key": "At minimum: src/agents/types.ts (or wherever the AgentConfig types live) and a DB seed/migration to add the agent row in the agents table. Additionally, src/app/admin/components/new-agent-view.tsx (and related admin UI) if the type needs to be exposed in the admin UI.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the `common_changes` section in the context, adding a new built-in agent type touches these three files/areas:\n\n1. **`src/agents/types.ts`** — to define the new agent type (e.g., add `'finance_agent'` to the agent type enum/union).\n2. **`src/db` (agents table seed/migration)** — to insert the new agent as a row in the database so it appears in `getEnabledAgentConfigs()`.\n3. **`src/app/admin/components/new-agent-view.tsx`** — to expose the new type in the admin UI so it can be configured.\n\nOne additional thing to be aware of from the gotchas: `policy_agent` is a hard-coded fallback in `src/app/api/chat/route.ts`. If your new `finance_agent` is intended to replace or interact with that fallback behavior, you'd need to touch that file too — but for a straightforward new agent addition, the three files above are the primary targets.",
+          "input_tokens": 2065,
+          "output_tokens": 242,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies all three primary files/areas from the answer key (src/agents/types.ts, DB seed/migration for agents table, and src/app/admin/components/new-agent-view.tsx) and adds a relevant bonus note about the chat route fallback.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 604,
+          "judge_output_tokens": 76
+        },
+        "B_raw_code_only": {
+          "response": "Based on the codebase, agents are **fully data-driven** — there are no hardcoded agent definitions in the TypeScript files shown. The `rowToAgentConfig` function in `src/agents/index.ts` dynamically constructs any agent from a database row, and the orchestrator in `src/core/orchestrator.ts` discovers agents at runtime via `getEnabledAgentConfigs()`.\n\nTo add a `finance_agent`, you'd most likely need to touch:\n\n1. **The database** (wherever `getEnabledAgentConfigs`, `getAgentConfig`, etc. read from) — insert a new row with `id: \"finance_agent\"`, its `name`, `emoji`, `description`, `system_prompt`, and `enabled: 1`.\n2. **`src/core/knowledge-loader.ts`** — not shown in context, but `agent-runner.ts` calls `loadKnowledgeForAgent(agent.id)`, so you'd need to add a knowledge file or mapping for `\"finance_agent\"` there.\n3. **`src/tools/registry.ts`** (`BUILTIN_TOOLS`) — only if the finance agent needs new tools not already in the registry; otherwise existing tools can be assigned via the DB.\n\nNo changes to `src/agents/index.ts`, `src/agents/types.ts`, or the chat route should be required, as they are fully generic.",
+          "input_tokens": 3277,
+          "output_tokens": 328,
+          "judge_score": 1,
+          "judge_reasoning": "The candidate correctly identifies the database as a key place to add a new agent row, which aligns with the answer key's mention of DB seed/migration. However, it incorrectly states no changes to src/agents/types.ts are needed (the answer key lists it as a minimum requirement), and it misses the admin UI file (new-agent-view.tsx). The response is partially correct but misses important files from the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 690,
+          "judge_output_tokens": 108
+        },
+        "C_combined": {
+          "response": "Based on the `common_changes` section in the agent-context frontmatter, adding a new built-in agent type requires touching these three files:\n\n1. **`src/agents/types.ts`** — Add the new agent type (e.g., extend the `type` union in `AgentConfigRow` to include `\"finance\"`).\n2. **`src/db` (agents table seed/migration)** — Add a DB record for the new agent so it appears in `getEnabledAgentConfigs()` and can be routed to.\n3. **`src/app/admin/components/new-agent-view.tsx`** — Update the admin UI to support creating/displaying the new agent type.\n\nNo changes are needed in the orchestrator or agent-runner themselves — the routing and execution pipeline is data-driven, pulling agent configs from the DB on every request. The new agent will automatically be included in routing once it has a DB record with a description.",
+          "input_tokens": 5212,
+          "output_tokens": 219,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies all three key files mentioned in the answer key: src/agents/types.ts, the DB seed/migration for the agents table, and src/app/admin/components/new-agent-view.tsx, with accurate explanations for each.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 581,
+          "judge_output_tokens": 71
+        }
+      }
+    },
+    {
+      "id": "q09",
+      "category": "common_change",
+      "question": "Where do I change the tool-call step depth (currently 3)?",
+      "answer_key": "In src/core/agent-runner.ts, the stopWhen: stepCountIs(3) parameter passed to generateText (around line 50). Change the literal 3 to the desired number.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Change the value at **`src/core/agent-runner.ts:50`**. That's where the tool-call loop cap is enforced, as noted in both the `tool-loop-bounded` invariant and the `common_changes` entry for \"Change tool loop depth.\"",
+          "input_tokens": 2047,
+          "output_tokens": 65,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the file and line number (src/core/agent-runner.ts:50) where the tool-call step depth should be changed, matching the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 382,
+          "judge_output_tokens": 53
+        },
+        "B_raw_code_only": {
+          "response": "In `src/core/agent-runner.ts`, change the value passed to `stopWhen: stepCountIs(3)` in the `generateText` call for agents that have tools.",
+          "input_tokens": 3259,
+          "output_tokens": 45,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies the file and the exact parameter to change.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 362,
+          "judge_output_tokens": 27
+        },
+        "C_combined": {
+          "response": "Change `stepCountIs(3)` on **`src/core/agent-runner.ts:50`** — that's the `stopWhen` parameter passed to `generateText` in the tools branch of `runAgent`.",
+          "input_tokens": 5194,
+          "output_tokens": 53,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the file (src/core/agent-runner.ts), line number (50), and the specific parameter (stepCountIs(3) in the stopWhen parameter passed to generateText), matching all key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 370,
+          "judge_output_tokens": 68
+        }
+      }
+    },
+    {
+      "id": "q10",
+      "category": "cross_ref",
+      "question": "How does posting a new announcement via the admin UI end up affecting an agent's behavior?",
+      "answer_key": "Active announcements are read from the DB by agent-runner on every request (getActiveAnnouncements), formatted as a bulleted list with priority tags, and prepended to the agent's system prompt under an 'Active Announcements' section. Every agent invocation pays for this re-read; there is no cache.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the context provided, here's the chain:\n\n1. An announcement is posted via the admin UI and persisted to the DB (this is handled by the `admin-dashboard` capability).\n2. On every incoming message, `runAgent` reads active announcements from the DB and **prepends them to the agent's system prompt** before the LLM call is made.\n\nThere is no caching involved — announcements are read fresh on every request, so a newly posted announcement takes effect on the very next message the agent receives. The gotcha to be aware of is that long announcement lists will inflate the system prompt, which could become a problem if the number of announcements grows large.",
+          "input_tokens": 2050,
+          "output_tokens": 149,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly describes the full chain: announcement posted via admin UI → persisted to DB → read fresh on every request via getActiveAnnouncements → prepended to system prompt, with no caching, matching all key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 494,
+          "judge_output_tokens": 67
+        },
+        "B_raw_code_only": {
+          "response": "Based on the provided context, here is the chain:\n\n1. **Storage** – When an admin creates an announcement, it is stored in the database (the context shows `getActiveAnnouncements()` querying it, implying a DB-backed store, though the write path isn't shown in these files).\n\n2. **Injection into the system prompt** – In `agent-runner.ts`, `getActiveAnnouncements()` is called on every `runAgent` invocation. If any active announcements exist, they are formatted and appended to the agent's `systemPrompt` under an `## Active Announcements` section, including each announcement's priority, title, and content.\n\n3. **Behavioral effect** – The LLM receives the expanded system prompt with those announcements and is instructed to *\"Reference them when relevant to employee questions.\"* This means the agent will surface announcement content in its replies when the employee's message is topically related.\n\nOne important caveat: the context does not show the admin-side write path (e.g., the API route or DB function that creates announcements), so we can only confirm the *read/injection* side of the flow from what's provided here.",
+          "input_tokens": 3262,
+          "output_tokens": 267,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies the key facts: getActiveAnnouncements() is called on every agent invocation, announcements are formatted and prepended to the system prompt under an Active Announcements section with priority tags, and there is no cache (re-read every request). The response also correctly notes the write path isn't shown in the provided context.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 612,
+          "judge_output_tokens": 88
+        },
+        "C_combined": {
+          "response": "Based on the context, here's the flow:\n\n1. **Admin posts an announcement** via the admin UI, which writes it to the database (the context notes announcements are stored in DB, readable via `getActiveAnnouncements()`).\n\n2. **On every incoming message**, `runAgent()` in `src/core/agent-runner.ts` calls `getActiveAnnouncements()` fresh from the DB (no cache), formats any active announcements as a bulleted list with priority labels, and appends them to the agent's system prompt under an `## Active Announcements` section.\n\n3. **The LLM then sees the announcements** as part of its system context and is instructed to \"reference them when relevant to employee questions,\" directly influencing its responses.\n\nThere is no caching delay — because `getActiveAnnouncements()` is called on every request, a newly posted announcement takes effect on the very next message processed by any agent. The one gotcha called out in the context is that long announcement lists will inflate the system prompt on every request, so there's no length cap currently.",
+          "input_tokens": 5197,
+          "output_tokens": 246,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies all key facts: announcements are stored in DB, getActiveAnnouncements() is called on every request with no cache, they're formatted as a bulleted list with priority tags, and prepended/added to the system prompt under an Active Announcements section, directly affecting agent behavior.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 591,
+          "judge_output_tokens": 80
+        }
+      }
+    },
+    {
+      "id": "q11",
+      "category": "cross_ref",
+      "question": "Where do an agent's tools get bound to the LLM call when runAgent executes?",
+      "answer_key": "In agent-runner.ts, runAgent calls agent.getTools(conversationId) to get the ToolSet for the current request. The getTools function is defined in src/agents/index.ts (rowToAgentConfig), which reads getToolsForAgent from the DB and instantiates each tool from BUILTIN_TOOLS using the conversationId and current request types.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the context provided, the tools are bound at runtime inside `runAgent` in `src/core/agent-runner.ts`. Specifically, the contract notes that `runAgent` uses `agent.getTools(convId)` to retrieve tools via `BUILTIN_TOOLS` from the tools registry (`tools/registry`), and those tools are then passed into the `generateText` call which runs up to 3 tool-call steps (capped by the invariant at `src/core/agent-runner.ts:50`).\n\nThe exact line where the tools are bound to the `generateText` call isn't shown in the provided context — you'd need to look at the full `agent-runner.ts` source to see the precise binding syntax. The context does note that `src/agents/index.ts` is \"a thin row-to-AgentConfig adapter and only matters when you need to know how tools are bound,\" pointing you there for deeper detail, deferred to the `tools-and-approvals` capability docs.",
+          "input_tokens": 2052,
+          "output_tokens": 230,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies that tools are bound in agent-runner.ts via agent.getTools(convId), references BUILTIN_TOOLS, and points to src/agents/index.ts as where the tool binding details are defined, matching the key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 592,
+          "judge_output_tokens": 73
+        },
+        "B_raw_code_only": {
+          "response": "In `agent-runner.ts`, the tools are bound in the `generateText` call inside the `if (hasTools)` branch. Specifically, the `tools` object (retrieved via `agent.getTools(conversationId)`) is passed directly as the `tools` parameter to `generateText`. This only happens when `hasTools` is true (i.e., `Object.keys(tools).length > 0`); if the agent has no tools, a separate `generateText` call is made without a `tools` parameter at all.",
+          "input_tokens": 3264,
+          "output_tokens": 122,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response correctly identifies that tools are bound in agent-runner.ts via agent.getTools(conversationId) passed to generateText, matching the key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 484,
+          "judge_output_tokens": 53
+        },
+        "C_combined": {
+          "response": "In `runAgent` (`src/core/agent-runner.ts`), tools are bound by calling `agent.getTools(conversationId)` (line ~33), which returns a `ToolSet`. That `ToolSet` is then passed directly as the `tools` property in the `generateText` call (~line 50).\n\nThe `getTools` implementation lives in `src/agents/index.ts` inside `rowToAgentConfig`: it queries `getToolsForAgent(row.id)` from the DB, looks up each tool's `builtin_key` in `BUILTIN_TOOLS`, and calls the tool's `.factory(convId, requestTypes)` to produce the actual tool instance. If no tools are found, `runAgent` skips the tool-capable `generateText` path entirely and uses a simpler call without a `tools` argument.",
+          "input_tokens": 5199,
+          "output_tokens": 198,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response accurately describes where tools get bound: agent.getTools(conversationId) in agent-runner.ts, how getTools is implemented in src/agents/index.ts via rowToAgentConfig, and how it queries the DB and instantiates tools from BUILTIN_TOOLS, matching all key facts in the answer key.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 560,
+          "judge_output_tokens": 88
+        }
+      }
+    },
+    {
+      "id": "q12",
+      "category": "control",
+      "question": "What is the Slack admin channel ID used to receive escalation notifications, and where is it configured?",
+      "answer_key": "This information is NOT in the agent-orchestration context. It belongs to the slack-integration capability (set via the SLACK_ADMIN_CHANNEL_ID environment variable, used in src/lib/slack.ts). A correct response should explicitly state that this is outside the provided context, not guess or fabricate a channel ID.",
+      "is_control": true,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "The provided context does not contain information about a Slack admin channel ID or where it is configured. The context references that escalation routing touches `src/app/api/slack/events/route.ts:106-132`, but no channel ID value or configuration mechanism is documented here. You would need to look directly at that file (and potentially environment variable definitions or a config file) to find that information.",
+          "input_tokens": 2053,
+          "output_tokens": 87,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate explicitly states the information is not in the provided context and does not fabricate a channel ID, which is the correct response for a control question.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 457,
+          "judge_output_tokens": 45
+        },
+        "B_raw_code_only": {
+          "response": "The provided context does not contain any information about a Slack admin channel ID or Slack integration of any kind. The escalation logic shown in the codebase (`escalation-detector.ts` and `chat/route.ts`) only creates an escalation record in the database via `createEscalation` — there is no Slack notification code visible in these files. You would need to look elsewhere in the codebase (e.g., a Slack webhook handler, environment variable definitions, or the `db` module) to find that information.",
+          "input_tokens": 3265,
+          "output_tokens": 120,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate response explicitly states that the information is not in the provided context and does not fabricate a channel ID or configuration details.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 490,
+          "judge_output_tokens": 40
+        },
+        "C_combined": {
+          "response": "The provided context does not contain any information about a Slack admin channel ID or where it is configured. The context covers the chat and Slack events routing pipeline, escalation detection, and agent execution, but no Slack channel IDs or notification configuration details appear anywhere in the provided source files.",
+          "input_tokens": 5200,
+          "output_tokens": 63,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate explicitly states the information is not in the provided context and does not fabricate an answer.",
+          "judge_parsed_ok": true,
+          "judge_input_tokens": 433,
+          "judge_output_tokens": 34
+        }
+      }
+    }
+  ],
+  "summary": {
+    "A_agent_context_only": {
+      "avg_input_tokens": 2052,
+      "avg_output_tokens": 119,
+      "total_input_tokens": 24619,
+      "total_output_tokens": 1424,
+      "accuracy_total": 23,
+      "accuracy_max": 24,
+      "accuracy_pct": 96,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 3,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 4,
+          "max": 4
+        },
+        "common_change": {
+          "sum": 4,
+          "max": 4
+        },
+        "cross_ref": {
+          "sum": 4,
+          "max": 4
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    },
+    "B_raw_code_only": {
+      "avg_input_tokens": 3264,
+      "avg_output_tokens": 152,
+      "total_input_tokens": 39163,
+      "total_output_tokens": 1827,
+      "accuracy_total": 23,
+      "accuracy_max": 24,
+      "accuracy_pct": 96,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 4,
+          "max": 4
+        },
+        "common_change": {
+          "sum": 3,
+          "max": 4
+        },
+        "cross_ref": {
+          "sum": 4,
+          "max": 4
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    },
+    "C_combined": {
+      "avg_input_tokens": 5199,
+      "avg_output_tokens": 131,
+      "total_input_tokens": 62383,
+      "total_output_tokens": 1577,
+      "accuracy_total": 24,
+      "accuracy_max": 24,
+      "accuracy_pct": 100,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 4,
+          "max": 4
+        },
+        "common_change": {
+          "sum": 4,
+          "max": 4
+        },
+        "cross_ref": {
+          "sum": 4,
+          "max": 4
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    }
+  }
+}
