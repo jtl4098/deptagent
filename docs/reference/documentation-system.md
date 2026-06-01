@@ -432,7 +432,7 @@ excluded from the PoC measurement.
 | Scale | Projected ratio |
 |---|---|
 | Typical Next.js feature area (~2K LOC) | ~5x |
-| WSL Android `video-playback` (5 fragments + helpers, ~10K LOC) | ~15-25x |
+| A legacy mobile capability (several host screens + helpers, ~10K LOC) | ~15-25x |
 | Enterprise legacy module (~30K LOC) | ~30-50x |
 
 Full methodology, every per-question response, the judge's reasoning,
@@ -456,9 +456,9 @@ Claude Code skill (user-global, at
    mode (default is `minimal`).
 5. Opens a single PR for the human to review and merge.
 
-The skill is repo-agnostic. Same invocation works in DeptAgent, in WSL
-Android, and in any future repository. The "tool" is the prompt
-template; there is no CLI to install, no CI job to provision.
+The skill is repo-agnostic. The same invocation works in DeptAgent and in
+any future repository. The "tool" is the prompt template; there is no CLI
+to install, no CI job to provision.
 
 ## Failure modes and what to do
 
@@ -485,7 +485,7 @@ Recommended path:
      Add `exclude_docs:` for `**/agent-context.md` and
      `_agent-index.md`.
    - In `docs.yml`, set `branches:` to the target repo's release line
-     (`develop` for WSL, `main` here).
+     (e.g. `develop` in some repos, `main` here).
    - In repo Settings → Pages, set Source to "GitHub Actions".
    - Seed `_agent-index.md` and at least one capability's
      `agent-context.md` so Phase 2 has something to maintain on day
