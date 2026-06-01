@@ -1,0 +1,675 @@
+{
+  "capability": "video-playback",
+  "answer_model": "claude-sonnet-4-6",
+  "judge_model": "claude-opus-4-8",
+  "timestamp": "2026-06-01T14:04:44.363Z",
+  "curated_files": [
+    "app/src/main/java/com/wsl/helpers/PlayerOrientationHelper.java",
+    "app/src/main/java/com/wsl/interfaces/AspVideoPlayer.java",
+    "app/src/main/java/com/wsl/interfaces/AspVideoPlayerStateObserver.java",
+    "app/src/main/java/com/wsl/android/WslExoPlayer.java",
+    "app/src/main/java/com/wsl/fragments/WatchVideoFragment.java",
+    "app/src/main/java/com/wsl/activities/SingleActivity.java"
+  ],
+  "full_files": [
+    "app/src/main/java/com/wsl/activities/SingleActivity.java",
+    "app/src/main/java/com/wsl/android/WslExoPlayer.java",
+    "app/src/main/java/com/wsl/android/WslBaseVideoPlayer.java",
+    "app/src/main/java/com/wsl/android/WslEmbedVideoPlayer.java",
+    "app/src/main/java/com/wsl/interfaces/AspVideoPlayer.java",
+    "app/src/main/java/com/wsl/interfaces/AspVideoPlayerStateObserver.java",
+    "app/src/main/java/com/wsl/helpers/PlayerOrientationHelper.java",
+    "app/src/main/java/com/wsl/helpers/AspCastHelper.java",
+    "app/src/main/java/com/wsl/views/AspVideoPlayerFrameLayout.java",
+    "app/src/main/java/com/wsl/fragments/ContentFragment.java",
+    "app/src/main/java/com/wsl/fragments/EventFragment.java",
+    "app/src/main/java/com/wsl/fragments/WatchVideoFragment.java",
+    "app/src/main/java/com/wsl/fragments/LiveBroadcastVideoFragment.java",
+    "app/src/main/java/com/wsl/ui/livebroadcastevent/LiveBroadcastEventFragment.java"
+  ],
+  "agent_context_file": "docs/capabilities/video-playback/agent-context.md",
+  "context_chars": {
+    "A_agent_context_only": 9746,
+    "B_curated": 226859,
+    "B_full": 469659,
+    "C_combined": 236644
+  },
+  "per_question": [
+    {
+      "id": "Q01",
+      "category": "invariant",
+      "question": "Where is the single video player instance owned, and how do the five host fragments obtain a reference to it?",
+      "answer_key": "The player is owned at the Activity level by SingleActivity (mVideoPlayer), with one instance per PlayerType. Host fragments do not instantiate their own player; they look it up at runtime via SingleActivity.getVideoPlayer(...), and re-attach to the same instance in onResume after a rotation-driven recreate.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "## Player Ownership and Fragment Access\n\nThe single player instance (per `PlayerType`) is owned by **`SingleActivity`**, as enforced by the `single-player-owner` invariant at lines 375–403 of `SingleActivity.java`.\n\nHost fragments obtain a reference by calling **`getSingleActivity().getVideoPlayer(...)`** — they never instantiate their own player. The `getVideoPlayer` method accepts a `PlayerType` (or `null`, which is treated as `CURRENT`) and returns the matching `@Nullable AspVideoPlayer` instance, with the side effects of hiding the other player backends and toggling Chromecast menu visibility. Fragments are expected to do this lookup in **`onResume`** to re-attach to the shared instance after lifecycle transitions like rotation or PiP exit.",
+          "input_tokens": 2999,
+          "output_tokens": 182,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies SingleActivity ownership, per-PlayerType instance, getVideoPlayer lookup, no own instantiation, and onResume re-attach after rotation.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "## Single Video Player Instance Ownership\n\nThe single video player instance is **owned by `SingleActivity`**, which holds three player references as private fields:\n\n```java\nprivate WslExoPlayer mExoPlayer;\nprivate WslEmbedVideoPlayer mEmbedVideoPlayer;\nprivate AndroidYoutubePlayerFragment mAndroidYoutubePlayer;\n```\n\nAll three are created once in `onCreate()` via `addPlayerFragment(PlayerType.*)`.\n\n## How Fragments Obtain a Reference\n\nFragments call `getSingleActivity().getVideoPlayer(playerType)` to retrieve the appropriate player. The `getVideoPlayer()` method acts as a selector — it hides the other two players and returns the requested one, assigning it to `mVideoPlayer` on the activity. For example, in `WatchVideoFragment`:\n\n```java\nprivate AspVideoPlayer getVideoPlayer() {\n    AspVideoPlayer.PlayerType playerType = WslVideoHelper.getPlayerTypeByProvider(...);\n    mVideoPlayer = getSingleActivity().getVideoPlayer(playerType);\n    mVideoPlayer.setBannerDelegate(this);\n    return mVideoPlayer;\n}\n```\n\nThis pattern means all five host fragments (`WatchVideoFragment`, `EventFragment`, `ContentFragment`, `LiveBroadcastVideoFragment`, `LiveBroadcastEventFragment`) share the same long-lived player instances — there is no per-fragment player creation. The fragment stores its own local `mVideoPlayer` reference but it always points back to one of the activity-owned singletons.",
+          "input_tokens": 60787,
+          "output_tokens": 351,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies activity-level ownership, getVideoPlayer lookup, no per-fragment instantiation, and shared long-lived instances across the five fragments.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "## Single Video Player Instance Ownership\n\nThe single video player instance is owned by **`SingleActivity`**, which creates and holds three player instances as fields:\n\n```java\nprivate AndroidYoutubePlayerFragment mAndroidYoutubePlayer;\nprivate WslExoPlayer mExoPlayer;\nprivate WslEmbedVideoPlayer mEmbedVideoPlayer;\n```\n\nAll three are created in `onCreate()` via `addPlayerFragment()`, and `mVideoPlayer` tracks whichever is currently active.\n\n## How Host Fragments Obtain a Reference\n\nAll five host fragments (`ContentFragment`, `EventFragment`, `WatchVideoFragment`, `LiveBroadcastVideoFragment`, `LiveBroadcastEventFragment`) call **`SingleActivity.getVideoPlayer(PlayerType)`** to obtain a reference. This method acts as both a factory and a switcher — it sets `mVideoPlayer` on the activity, hides the other two players, and returns the requested one. For example in `ContentFragment`:\n\n```java\nmVideoPlayer = getSingleActivity().getVideoPlayer(\n    WslVideoHelper.getPlayerTypeByProvider(content.getVideoProvider()));\n```\n\nFragments reach `SingleActivity` via the inherited `getSingleActivity()` helper. They store the returned reference in their own local `mVideoPlayer` field for the duration of their lifecycle, but they do **not** own the player — it continues to be held by `SingleActivity`, which is why the player survives fragment transitions and can be shared (e.g. for mini-player behavior when navigating away).",
+          "input_tokens": 126528,
+          "output_tokens": 352,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies SingleActivity ownership, getVideoPlayer(PlayerType) lookup mechanism, and that fragments don't own/instantiate the player but reference the shared instance.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "The single player instance is owned by `SingleActivity`, which creates all three player backends (`WslExoPlayer`, `WslEmbedVideoPlayer`, `AndroidYoutubePlayerFragment`) in `onCreate` via `addPlayerFragment()` and stores them as fields (`mExoPlayer`, `mEmbedVideoPlayer`, `mAndroidYoutubePlayer`).\n\nHost fragments obtain a reference by calling `getSingleActivity().getVideoPlayer(playerType)`, passing the appropriate `PlayerType` enum value. `getVideoPlayer()` selects the right backend, hides the other two, toggles the Chromecast menu item visibility, and returns the player — fragments never instantiate their own player. In `WatchVideoFragment` this call is encapsulated in its private `getVideoPlayer()` helper, which first determines the `PlayerType` from the current video's provider via `WslVideoHelper.getPlayerTypeByProvider()`, then delegates to the activity.",
+          "input_tokens": 63666,
+          "output_tokens": 217,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies SingleActivity as owner, fragments look up via getVideoPlayer(PlayerType), and don't instantiate their own player; adds plausible detail consistent with the key.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q02",
+      "category": "invariant",
+      "question": "Which component enters Picture-in-Picture mode, the Activity or the host fragments? Where does that happen?",
+      "answer_key": "The Activity enters PiP, not the fragments. SingleActivity calls enterPictureInPictureMode in onUserLeaveHint. Fragments only react to onPictureInPictureModeChanged for UI adjustments; they never enter PiP themselves.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the invariant `pip-entry-at-activity` and the entry points documented:\n\n**The Activity enters PiP — never the fragments.** This happens in `SingleActivity.onUserLeaveHint()` (around line 2028–2055 in `app/src/main/java/com/wsl/activities/SingleActivity.java`). Fragments only *react* to the transition via `onPictureInPictureModeChanged`, which they use solely for UI updates (not to trigger entry).",
+          "input_tokens": 2999,
+          "output_tokens": 121,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly states Activity enters PiP in SingleActivity.onUserLeaveHint and fragments only react via onPictureInPictureModeChanged.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the provided context, **`SingleActivity`** enters Picture-in-Picture mode — not the host fragments.\n\nThis happens in `SingleActivity.onUserLeaveHint()`, which is called when the user presses the Home button or navigates away. The method calls `enterPictureInPictureMode(builder.build())` after verifying several conditions: casting is not active, the current fragment is a video fragment, and the video player is playing or has an ad playing. The `PictureInPictureParams` are configured with the player container's aspect ratio before entry.",
+          "input_tokens": 60787,
+          "output_tokens": 133,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies that SingleActivity enters PiP via onUserLeaveHint, not the fragments, with accurate details.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "**The Activity enters Picture-in-Picture mode, not the fragments.**\n\nThis happens in `SingleActivity.onUserLeaveHint()`, which is called by the OS when the user presses the Home button or navigates away. The method calls `enterPictureInPictureMode(builder.build())` directly on the Activity after checking that the current fragment is a video fragment (one of `WatchVideoFragment`, `LiveBroadcastVideoFragment`, `LiveBroadcastEventFragment`, `ContentFragment`, or `EventFragment`) and that the video player is actively playing or has an ad playing.\n\nThe fragments are not directly involved in initiating PiP — they only react to the transition indirectly through player state callbacks (`onPlayerStateChange`) and orientation guards (`PlayerOrientationHelper`). The entire PiP lifecycle (entry, action handling via `BroadcastReceiver`, and exit) is managed exclusively in `SingleActivity` via `onUserLeaveHint()`, `onPictureInPictureModeChanged()`, and related methods.",
+          "input_tokens": 126528,
+          "output_tokens": 239,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies that the Activity (SingleActivity) enters PiP in onUserLeaveHint, and that fragments only react, matching the answer key.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Based on the context, **only the Activity enters Picture-in-Picture mode** — host fragments never initiate it.\n\nThis happens in `SingleActivity.onUserLeaveHint()` (around line 2028), which calls `enterPictureInPictureMode(builder.build())` when the user navigates away from the app while video is playing. This is explicitly enforced as an invariant (`pip-entry-at-activity`): \"Picture-in-Picture is entered only by the Activity in `onUserLeaveHint`, never by a fragment.\"\n\nFragments only **react** to PiP mode changes via `onPictureInPictureModeChanged` callbacks for UI adjustments, but they have no role in initiating PiP entry.",
+          "input_tokens": 63666,
+          "output_tokens": 174,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly states Activity enters PiP in onUserLeaveHint and fragments only react via onPictureInPictureModeChanged.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q03",
+      "category": "invariant",
+      "question": "In a host fragment's onConfigurationChanged, what must be checked before calling setFullScreen, and why?",
+      "answer_key": "It must call PlayerOrientationHelper.shouldSuppressOrientationSwitch first. That returns true while a PiP exit is in progress (isExitingPipMode); during the PiP-to-full window resize an orientation change must not trigger a fullscreen toggle. When suppressed, the fragment just calls positionVideoPlayer() and returns instead of toggling fullscreen.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "## What must be checked before calling `setFullScreen` in `onConfigurationChanged`\n\nThe fragment must call **`PlayerOrientationHelper.shouldSuppressOrientationSwitch()`** before any `setFullScreen` call.\n\n**Why:** During PiP exit, the system delivers a configuration change as the window resizes from the tiny PiP dimensions back to full size. Without this guard, that window resize would be misread as a user-initiated rotation and trigger a spurious `setFullScreen` call. The `shouldSuppressOrientationSwitch` check consults `SingleActivity.isExitingPipMode()` (and potentially other state) to detect this window-is-still-transitioning scenario and suppress the toggle entirely.\n\nThis is reinforced by a second invariant at the `setFullScreen` level itself: even if the guard in the fragment is somehow bypassed, `setFullScreen(true)` will early-return while `isExitingPipMode()` is true (invariant `no-fullscreen-enter-during-pip-exit`, enforced at `WslExoPlayer.java:703-705`), preventing the portrait-fullscreen flash during the PiP-to-full window transition.",
+          "input_tokens": 3000,
+          "output_tokens": 280,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the shouldSuppressOrientationSwitch check, the isExitingPipMode/PiP-exit reason, and the suppression of fullscreen toggling during window resize.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the context, two checks must be performed before calling `setFullScreen` in `onConfigurationChanged`:\n\n1. **PiP exit transition** (`PlayerOrientationHelper.shouldSuppressOrientationSwitch`): If `activity.isExitingPipMode()` returns true, the PiP window is still resizing and an orientation change would incorrectly trigger a fullscreen toggle with stale (PiP-era) display dimensions. The fragment should call `positionVideoPlayer()` and return early instead.\n\n2. **Ad playback** (also handled by `shouldSuppressOrientationSwitch` returning false, but documented separately): During ads, `shouldSuppressOrientationSwitch` returns `false`, so `setFullScreen` *is* still called — however, `WslExoPlayer.setFullScreen` itself skips the orientation lock internally when `isAdPlaying()` is true. This allows the user to rotate freely without being trapped in fullscreen during an ad.\n\nAs seen in `WatchVideoFragment.onConfigurationChanged`, the pattern is:\n\n```java\nif (PlayerOrientationHelper.shouldSuppressOrientationSwitch(activity, mVideoPlayer)) {\n    positionVideoPlayer();\n    return;\n}\n// safe to call setFullScreen here\n```\n\nThe centralisation in `PlayerOrientationHelper` exists specifically to prevent these guards from drifting across the multiple video fragments that share this logic (WSL-8261, WSL-8378).",
+          "input_tokens": 60788,
+          "output_tokens": 346,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies shouldSuppressOrientationSwitch check, PiP exit reasoning, and positionVideoPlayer()/return pattern; extra ad detail doesn't detract.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the codebase, before calling `setFullScreen` in `onConfigurationChanged`, the fragment must call `PlayerOrientationHelper.shouldSuppressOrientationSwitch(activity, mVideoPlayer)` and bail out early if it returns `true`.\n\nThis check guards against two scenarios:\n\n1. **PiP exit transition** — When the activity is exiting PiP mode (`activity.isExitingPipMode()`), the window is still resizing from the small PiP bounds to full size. Calling `setFullScreen(true)` in this window would use stale PiP-era display dimensions, and `WslExoPlayer.setFullScreen` itself also has an explicit guard (`if (fullScreen && activity.isExitingPipMode()) return;`) to block it. Fragments still call `positionVideoPlayer()` in this path so container sizes are recalculated as the window grows.\n\n2. **Ad playback** — During ads, `WslExoPlayer.setFullScreen` deliberately skips the orientation lock so the user can rotate freely without being trapped in fullscreen. The fragment-side suppression in `shouldSuppressOrientationSwitch` does NOT block `setFullScreen` for ads (it only returns `true` for PiP exit); WslExoPlayer's own internal guards handle the ad case within `setFullScreen` itself.\n\nAll five video fragment classes (`EventFragment`, `ContentFragment`, `WatchVideoFragment`, `LiveBroadcastVideoFragment`, `LiveBroadcastEventFragment`) follow this same pattern consistently.",
+          "input_tokens": 126529,
+          "output_tokens": 362,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies shouldSuppressOrientationSwitch check, PiP exit reason, and positionVideoPlayer fallback; extra ad details don't detract from the core correct answer.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Before calling `setFullScreen`, the fragment must call `PlayerOrientationHelper.shouldSuppressOrientationSwitch(activity, mVideoPlayer)`. If it returns `true`, the fragment should skip `setFullScreen` entirely (just call `positionVideoPlayer()` and return).\n\nThe reason is PiP exit: when the user expands the PiP window back to fullscreen, the system fires a configuration change as the window resizes from PiP-era dimensions to full size. Calling `setFullScreen` during this transition would use incorrect (tiny, PiP-era) display dimensions and could trigger a spurious fullscreen toggle. The `isExitingPipMode()` flag on `SingleActivity` is the underlying gate — `shouldSuppressOrientationSwitch` returns `true` while that flag is set, blocking any orientation-driven fullscreen change until `onResume` clears it and `positionVideoPlayer()` can finalize layout with correct dimensions.",
+          "input_tokens": 63667,
+          "output_tokens": 223,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies shouldSuppressOrientationSwitch, the PiP exit reason (isExitingPipMode), and the positionVideoPlayer/return behavior.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "contract",
+      "question": "What does WslExoPlayer.setFullScreen(boolean) do when invoked with the same fullscreen state the player is already in?",
+      "answer_key": "It early-returns and does nothing: the method begins with `if (mIsFullScreen == fullScreen) return;`. Repeated calls in the same state are no-ops.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the **`setfullscreen-noop-guard` invariant**, `setFullScreen` early-returns immediately when the requested state matches the current state (`mIsFullScreen == fullScreen`). This is enforced at `WslExoPlayer.java:693`. The call is a complete no-op — no Dialog is shown/dismissed, no orientation lock is applied, and no `onPlayerStateChange` callback is fired.",
+          "input_tokens": 3007,
+          "output_tokens": 98,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the early-return no-op guard when state matches, matching the answer key.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the code in `WslExoPlayer.setFullScreen(boolean)`, the very first line of the method is:\n\n```java\nif (mIsFullScreen == fullScreen) return;\n```\n\nIt immediately returns without doing anything. If the player is already in fullscreen and `setFullScreen(true)` is called, or already not in fullscreen and `setFullScreen(false)` is called, the method is a no-op.",
+          "input_tokens": 60795,
+          "output_tokens": 103,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the early-return guard clause and that repeated same-state calls are no-ops, matching the answer key.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the code in `WslExoPlayer.setFullScreen`, the very first line is:\n\n```java\nif (mIsFullScreen == fullScreen) return;\n```\n\nIt returns immediately without doing anything. This is an idempotency guard — if the player is already in the requested fullscreen state, the method is a no-op.",
+          "input_tokens": 126536,
+          "output_tokens": 80,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the early-return guard and no-op behavior matching the answer key.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "It returns immediately without doing anything. The very first line of `setFullScreen` is a no-op guard: `if (mIsFullScreen == fullScreen) return;` (line 693). No dialog is shown or dismissed, no orientation is changed, and no observer callback is fired.",
+          "input_tokens": 63674,
+          "output_tokens": 65,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the early-return no-op guard matching the answer key.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q05",
+      "category": "contract",
+      "question": "Describe the contract of SingleActivity.getVideoPlayer(PlayerType): its return type, how it treats a null argument, and its side effects.",
+      "answer_key": "It returns a @Nullable AspVideoPlayer (may be null if the requested player fragment is not found). A null PlayerType argument is treated as CURRENT. Side effects: it hides the other two player backends, and toggles the Chromecast menu item visibility (on only for EXOPLAYER, off for YOUTUBE and EMBED).",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the contracts section in the context:\n\n`getVideoPlayer(PlayerType)` accepts a `@Nullable AspVideoPlayer.PlayerType` and returns `@Nullable AspVideoPlayer`. A `null` argument is treated as `CURRENT` (i.e., it returns whichever player is currently active). Beyond the return value, it has two notable side effects: it **hides the other two player backends** (only the requested player type remains visible), and it **toggles the Chromecast menu item visibility**, enabling it only for the `EXOPLAYER` type. It may return `null` if the requested player's fragment cannot be found.",
+          "input_tokens": 3008,
+          "output_tokens": 146,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly covers return type, null-as-CURRENT handling, and both side effects including Chromecast visibility specifics.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "## `SingleActivity.getVideoPlayer(PlayerType)` Contract\n\n**Return type:** `@Nullable AspVideoPlayer` — the method is annotated nullable, so callers must guard against null.\n\n**Null argument handling:** If `playerType` is `null`, the method treats it as `AspVideoPlayer.PlayerType.CURRENT` via the null-check at the top (`if (playerType == null) playerType = AspVideoPlayer.PlayerType.CURRENT;`). However, `CURRENT` has no explicit `case` in the switch statement, so it falls through to the `default` path — which means none of the cases execute and `mVideoPlayer` is returned unchanged from its prior state.\n\n**Side effects by player type:**\n- **YOUTUBE:** Sets `mVideoPlayer` to the YouTube player, hides the ExoPlayer and EmbedPlayer, hides the PTR progress bar, and calls `toggleChromecastMenuItemVisibility(false)`.\n- **EXOPLAYER:** Sets `mVideoPlayer` to the ExoPlayer, hides the YouTube and Embed players, and calls `toggleChromecastMenuItemVisibility(true)`.\n- **EMBED:** Sets `mVideoPlayer` to the EmbedPlayer, hides the ExoPlayer and YouTube players, hides the PTR progress bar, and calls `toggleChromecastMenuItemVisibility(false)`.\n\nIn all three active cases, the method **hides the other two players** as a side effect, making it an activation/deactivation toggle rather than a pure getter.",
+          "input_tokens": 60796,
+          "output_tokens": 354,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies @Nullable AspVideoPlayer return, null treated as CURRENT, hiding other players, and Chromecast toggle (on for EXOPLAYER, off otherwise).",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "## `SingleActivity.getVideoPlayer(PlayerType)` Contract\n\n### Return Type\nReturns `@Nullable AspVideoPlayer` — the method is annotated nullable and can return null if the underlying fragment/player has not been initialized.\n\n### Null Argument Handling\nIf `playerType` is `null`, it is immediately reassigned to `AspVideoPlayer.PlayerType.CURRENT` before the switch statement, so a null argument is treated as a request for whichever player is currently set in `mVideoPlayer`.\n\n### Behavior Per PlayerType\n- **YOUTUBE**: sets `mVideoPlayer` to `mAndroidYoutubePlayer` (or looks it up via FragmentManager), hides the ExoPlayer and EmbedPlayer, hides the PTR progress bar, and **disables Chromecast** via `toggleChromecastMenuItemVisibility(false)`.\n- **EXOPLAYER**: sets `mVideoPlayer` to `mExoPlayer`, hides YouTube and Embed players, and **enables Chromecast** via `toggleChromecastMenuItemVisibility(true)`.\n- **EMBED**: sets `mVideoPlayer` to `mEmbedVideoPlayer`, hides ExoPlayer and YouTube players, hides the PTR progress bar, and **disables Chromecast**.\n- **CURRENT**: falls through without matching any case, so `mVideoPlayer` is unchanged and returned as-is.\n\n### Side Effects\nBeyond updating `mVideoPlayer`, every non-CURRENT call has **visibility side effects** on sibling players (hiding the ones not selected) and on the Chromecast menu item. The method also updates the activity-level `mVideoPlayer` field as a byproduct, meaning subsequent calls with `CURRENT`/null will reflect the last explicitly-selected player type.",
+          "input_tokens": 126537,
+          "output_tokens": 411,
+          "judge_score": 2,
+          "judge_reasoning": "Covers nullable return type, null treated as CURRENT, hiding other backends, and Chromecast toggling per player type.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Based on the source code, `getVideoPlayer(@Nullable AspVideoPlayer.PlayerType playerType)` returns `@Nullable AspVideoPlayer` — it can return null if the requested player fragment is not found in the FragmentManager.\n\nA null argument is treated as `PlayerType.CURRENT`, though looking at the switch statement the CURRENT case has no explicit branch, so in practice it falls through without assigning `mVideoPlayer`, returning whatever `mVideoPlayer` was last set to.\n\nThe method has three consistent side effects regardless of which player type is requested: it **hides the other two player backends** (e.g. requesting EXOPLAYER calls `hide()` on both the YouTube and Embed players), it **toggles the Chromecast menu item visibility** (shown only for EXOPLAYER, hidden for YOUTUBE and EMBED), and it **updates the internal `mVideoPlayer` field** to point to the newly active player instance (preferring the cached field reference over a FragmentManager lookup if already non-null).",
+          "input_tokens": 63675,
+          "output_tokens": 229,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly covers nullable return type, null treated as CURRENT, hiding other backends, and Chromecast menu toggle.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q06",
+      "category": "gotcha",
+      "question": "Why might the fullscreen video player and its controls fail to appear in a uiautomator or `android layout` hierarchy dump?",
+      "answer_key": "Because fullscreen is hosted in a separate Dialog window, not the Activity window. uiautomator / android layout only traverse the Activity window, so the Dialog-hosted player and controls are missing. System bars are also hidden on the Dialog's window rather than the Activity's.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Because fullscreen is hosted in a **separate Dialog window**, not the Activity window. UI automator and `android layout` hierarchy dumps only traverse the Activity window, so the fullscreen player and its controls — which live in the Dialog — are invisible to those tools.",
+          "input_tokens": 3005,
+          "output_tokens": 57,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies that fullscreen is in a separate Dialog window not traversed by the dump tools.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the codebase, there are two primary reasons why the fullscreen player and its controls would be absent from a UI hierarchy dump:\n\n## 1. Fullscreen Uses a Separate `Dialog` Window\n\nIn `WslExoPlayer.setFullScreen(true)`, the player's root view is **reparented into a `Dialog`** rather than the activity's view tree:\n\n```java\n((ViewGroup) mRootView.getParent()).removeView(mRootView);\nmFullScreenDialog.addContentView(mRootView, ...);\nmFullScreenDialog.show();\n```\n\n`Dialog` instances create their own `PhoneWindow`/`DecorView`, which is a **separate window token**. UIAutomator's layout hierarchy dump lists windows, but only captures the focused or top-most window by default in many tooling configurations. The fullscreen dialog window may be missed entirely if the tool doesn't enumerate all active windows.\n\n## 2. The ExoPlayer Controller Can Be Hidden or Disabled\n\nIn several code paths, `mPlayerView.setUseController(false)` and `mPlayerView.hideController()` are called:\n\n- During **ad playback** via `applyAdUiVisible(true)`\n- When **entering PiP mode** via `hideControlsInPipMode()`\n- During **cast handoff**\n\nWhen `setUseController(false)` is active, the `PlayerControlView` is detached from the hierarchy, making it invisible to a layout dump even if the dialog window itself is found.",
+          "input_tokens": 60793,
+          "output_tokens": 355,
+          "judge_score": 1,
+          "judge_reasoning": "Correctly identifies the separate Dialog window as the main reason, but adds speculative/fabricated details (specific method names, controller hiding) and misses the system bars point.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the codebase, there are several reasons the fullscreen video player and its controls might not appear in a UI Automator or layout hierarchy dump:\n\n## 1. Fullscreen Dialog Window (Primary Reason)\n\nIn `WslExoPlayer.setFullScreen(true)`, the player view is moved into a separate `Dialog` window:\n\n```java\nmFullScreenDialog = new Dialog(mContext, android.R.style.Theme_Black_NoTitleBar_Fullscreen)\n...\nmFullScreenDialog.addContentView(mRootView, ...)\nmFullScreenDialog.show()\n```\n\nUI Automator by default only dumps the **focused window**. If the Dialog window is not the focused window at the time of the dump, its contents won't appear. More importantly, the player's root view is **physically detached** from the activity's view hierarchy and re-parented into the Dialog.\n\n## 2. Controller Hidden in PiP Mode\n\n`hideControlsInPipMode()` calls `mPlayerView.setUseController(false)` when in PiP mode, which removes the controls from the hierarchy.\n\n## 3. `setUseController(false)` During Ads\n\n`applyAdUiVisible(true)` calls `mPlayerView.setUseController(false)` during ad playback, hiding the ExoPlayer controller.\n\n## 4. Container Visibility\n\nThe player container (`AspVideoPlayerFrameLayout`) can be `View.INVISIBLE` (not `GONE`) in some states — `hide()` calls `setVisibility(View.INVISIBLE)`. Invisible views are present in the hierarchy but invisible, and some dump tools skip them.\n\n## 5. Root View Detached During Transition\n\nDuring `setFullScreen`, `((ViewGroup) mRootView.getParent()).removeView(mRootView)` is called before adding it to the Dialog, so there's a brief window where the view has no parent at all.",
+          "input_tokens": 126534,
+          "output_tokens": 455,
+          "judge_score": 2,
+          "judge_reasoning": "The candidate correctly identifies the primary reason: fullscreen is hosted in a separate Dialog window detached from the Activity, which dump tools don't traverse, matching the answer key's core point.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "The fullscreen player is hosted in a separate `Dialog` window (not the Activity window). When `setFullScreen(true)` is called in `WslExoPlayer`, the player's root view is removed from the Activity's view hierarchy and added to a `mFullScreenDialog` via `mFullScreenDialog.addContentView(...)`, then `mFullScreenDialog.show()` is called.\n\nUIAutomator and `android layout` hierarchy dumps only traverse the Activity's window. Since the fullscreen player and its controls live in the Dialog's separate window, they are invisible to those tools.",
+          "input_tokens": 63672,
+          "output_tokens": 132,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the Dialog window separation and that the dump tools only traverse the Activity window, matching the key.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q07",
+      "category": "gotcha",
+      "question": "During a PiP exit, why does setFullScreen(false) skip resetLayoutToDefaultDimensions, and what finalizes the player layout instead?",
+      "answer_key": "During PiP exit the window is still transitioning, so getDisplayDimensions() returns PiP-era (tiny) values; calling resetLayoutToDefaultDimensions then would shrink the container. The code skips it when isExitingPipMode is true, relying on the container's preserved pre-PiP dimensions, and onResume()'s positionVideoPlayer() finalizes the layout once the window is full size. For the same reason, the STATE_NOT_FULLSCREEN observer callback is also suppressed during PiP exit.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "## Why `setFullScreen(false)` skips `resetLayoutToDefaultDimensions` during PiP exit\n\nDuring PiP exit, `getDisplayDimensions()` returns the **PiP-era tiny dimensions** — the window hasn't yet expanded back to full size. If `resetLayoutToDefaultDimensions` were called at that point, the player would be sized and positioned using those incorrect small values, corrupting the layout.\n\nThe guard is explicit: `setFullScreen(false)` checks `isExitingPipMode()` and deliberately skips `resetLayoutToDefaultDimensions` when it returns `true` (`WslExoPlayer.java:776-784`).\n\nFor the same reason, the `STATE_NOT_FULLSCREEN` observer callback is also suppressed while `isExitingPipMode` is true (`WslExoPlayer.java:800-802`) — firing it would cause host fragments to call `positionVideoPlayer()` with PiP-era dimensions and undo the preservation.\n\n**What finalizes the layout instead:** `onResume()` runs after the window has fully expanded to its normal size, and its call to `positionVideoPlayer()` applies the correct final dimensions at that point.",
+          "input_tokens": 3010,
+          "output_tokens": 282,
+          "judge_score": 2,
+          "judge_reasoning": "Covers PiP-era tiny dimensions, the isExitingPipMode skip, suppressed STATE_NOT_FULLSCREEN callback, and onResume()'s positionVideoPlayer() finalizing the layout.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "During a PiP exit, `setFullScreen(false)` skips `resetLayoutToDefaultDimensions` because `activity.isExitingPipMode()` returns true at that point. The comment in the code explains that the window is still transitioning from PiP to full size, so `getDisplayDimensions()` would return PiP-era (small) values, which would make the container tiny if used to reset dimensions.\n\nInstead of resetting dimensions there, the code preserves the container's correct pre-PiP dimensions that were in place before `setFullScreen(true)` was originally called. The finalizing step is deferred to `EventFragment.onResume()` (as noted in the comment), which calls `positionVideoPlayer()` once the window has reached its full size and display dimensions are accurate again.",
+          "input_tokens": 60798,
+          "output_tokens": 189,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the isExitingPipMode skip, PiP-era dimension problem, preserved pre-PiP dimensions, and onResume()'s positionVideoPlayer() finalizing the layout.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "## Why `setFullScreen(false)` Skips `resetLayoutToDefaultDimensions` During PiP Exit\n\nIn `WslExoPlayer.setFullScreen(false)`, there is an explicit guard:\n\n```java\nif (!activity.isExitingPipMode()) {\n    mContainer.resetLayoutToDefaultDimensions();\n}\n```\n\nThe reason is explained in the comment: **during PiP exit, the window is still transitioning from PiP to its full size**. At that moment, `getDisplayDimensions()` (called inside `resetLayoutToDefaultDimensions`) returns the tiny PiP-era dimensions, not the final full-screen dimensions. Calling reset there would size the container incorrectly — too small — based on stale PiP window measurements.\n\n## What Finalizes the Layout Instead\n\nTwo things take over:\n\n1. **The container retains its correct pre-PiP dimensions.** The comment notes: *\"the container still has its correct pre-PiP dimensions from before `setFullScreen(true)` was called.\"* So simply not resetting it preserves a valid state.\n\n2. **`EventFragment.onResume()` (and equivalent fragment `onResume` paths) calls `positionVideoPlayer()`** once the window has grown back to full size. This is explicitly called out in the skip comment: *\"EventFragment.onResume() will call positionVideoPlayer() to finalize the layout when the window is at full size.\"*\n\nIn `ContentFragment`, the equivalent is `positionVideoContentVideoPlayer()` called from `onPlayerStateChange` or `onConfigurationChanged`, with a similar PiP-exit guard that skips restoring the stale scroll position but still runs `positionVideoContentVideoPlayer()` for the player itself.",
+          "input_tokens": 126539,
+          "output_tokens": 414,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly explains the PiP-era dimensions issue, the isExitingPipMode guard, preserved pre-PiP dimensions, and onResume()'s positionVideoPlayer() finalizing the layout.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "During PiP exit, `getDisplayDimensions()` returns PiP-era (tiny) values because the window is still transitioning from PiP to full size. If `resetLayoutToDefaultDimensions` were called at that moment, the container would be sized to the tiny PiP dimensions rather than the correct full-screen dimensions.\n\nThe skip is guarded by `activity.isExitingPipMode()` in `WslExoPlayer.setFullScreen` (lines 776-784): when that flag is true, `mContainer.resetLayoutToDefaultDimensions()` is not called, and the container retains its correct pre-PiP dimensions from before `setFullScreen(true)` was originally called.\n\nWhat finalizes the layout instead is `positionVideoPlayer()` called from `onResume()` of the host fragment. By the time `onResume` runs, the window has fully transitioned to its full size, so `getDisplayDimensions()` returns correct values and the player is properly repositioned. The `STATE_NOT_FULLSCREEN` observer callback is also suppressed during PiP exit for the same reason — firing it would trigger `positionVideoPlayer()` with stale PiP-era dimensions and undo the dimension preservation.",
+          "input_tokens": 63677,
+          "output_tokens": 289,
+          "judge_score": 2,
+          "judge_reasoning": "Covers PiP-era dimensions, isExitingPipMode skip, preserved pre-PiP dimensions, onResume positionVideoPlayer finalization, and suppressed STATE_NOT_FULLSCREEN callback.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q08",
+      "category": "gotcha",
+      "question": "For an EXOPLAYER-type player, should a host fragment apply the PORTRAIT lock in onPlayerStateChange(STATE_NOT_FULLSCREEN)? What about an EMBED player?",
+      "answer_key": "No for EXOPLAYER: WslExoPlayer manages its own orientation lock with a delayed SENSOR release, so a second fragment-side lock would break that release and trap the user in portrait. shouldSuppressPortraitLock returns true for non-EMBED players precisely to skip it. EMBED (e.g., YouTube) players do NOT route through WslExoPlayer.setFullScreen, so they still need the fragment-side PORTRAIT lock.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "## Answer\n\n**EXOPLAYER-type: No.** The fragment must NOT apply the PORTRAIT lock in `onPlayerStateChange(STATE_NOT_FULLSCREEN)` for an EXOPLAYER-type player. `WslExoPlayer` owns the orientation lock and its delayed SENSOR release internally (WSL-8378), so a fragment-side lock would be a duplicate. The `shouldSuppressPortraitLock` guard in `PlayerOrientationHelper` returns `true` for non-EMBED players precisely to prevent this double-locking.\n\n**EMBED-type: Yes.** EMBED/YouTube players do not route through `WslExoPlayer.setFullScreen`, so they have no internal orientation management. The fragment is responsible for applying the PORTRAIT lock in `onPlayerStateChange(STATE_NOT_FULLSCREEN)` for these players. `shouldSuppressPortraitLock` returns `false` for EMBED, allowing the lock to proceed.\n\nThis distinction is enforced by `PlayerOrientationHelper.java:66-82`.",
+          "input_tokens": 3018,
+          "output_tokens": 241,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly states No for EXOPLAYER and Yes for EMBED with accurate reasoning about WslExoPlayer's internal orientation lock and shouldSuppressPortraitLock behavior.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on `PlayerOrientationHelper.shouldSuppressPortraitLock`, for an **EXOPLAYER-type player**, the fragment should **NOT** apply the PORTRAIT lock. The helper returns `true` (suppress) for any player that is not `PlayerType.EMBED`, because `WslExoPlayer.setFullScreen` already manages the orientation lock and delayed SENSOR release internally — a second fragment-side lock would break that release and trap the user in portrait.\n\nFor an **EMBED-type player**, the fragment **should** apply the PORTRAIT lock. The helper returns `false` (do not suppress), because embed players don't go through `WslExoPlayer.setFullScreen` and have no internal orientation management, so the fragment-side lock is still needed to keep them in portrait.",
+          "input_tokens": 60806,
+          "output_tokens": 180,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly states no lock for EXOPLAYER due to WslExoPlayer's internal management and delayed SENSOR release, and yes for EMBED since they bypass setFullScreen.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on `PlayerOrientationHelper.shouldSuppressPortraitLock()`:\n\n**EXOPLAYER:** No, the fragment should NOT apply the PORTRAIT lock. The method returns `true` (suppress) for any non-EMBED player type, because `WslExoPlayer.setFullScreen()` already manages the orientation lock itself (including a delayed SENSOR release so rotation-back-to-landscape still works). A second lock from the fragment would break that release and trap the user in portrait.\n\n**EMBED:** Yes, the fragment SHOULD apply the PORTRAIT lock. EMBED players don't go through `WslExoPlayer.setFullScreen()`, so the fragment-side lock is still needed to keep the device in portrait after exiting fullscreen.\n\nThere is one additional guard that applies to both types: if `player.isAdPlaying()` returns true, the PORTRAIT lock is also suppressed regardless of player type, so the user can rotate freely during ad playback.",
+          "input_tokens": 126547,
+          "output_tokens": 220,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly answers no for EXOPLAYER and yes for EMBED with accurate rationale matching the answer key; extra ad detail doesn't contradict.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "For an **EXOPLAYER-type player, no** — the fragment must NOT apply the PORTRAIT lock. `WslExoPlayer.setFullScreen` already manages the orientation lock and schedules a delayed SENSOR release itself. Applying a second lock from the fragment would break that release and trap the user in portrait. `PlayerOrientationHelper.shouldSuppressPortraitLock` returns `true` for any non-EMBED player type, which causes the fragment to skip the lock.\n\nFor an **EMBED-type player, yes** — EMBED players (e.g. YouTube embeds) don't route through `WslExoPlayer.setFullScreen`, so `WslExoPlayer`'s orientation management never runs. The fragment-side PORTRAIT lock is still needed for them. `shouldSuppressPortraitLock` returns `false` only when the player is EMBED *and* no ad is playing, allowing the lock to proceed.",
+          "input_tokens": 63685,
+          "output_tokens": 215,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly states no for EXOPLAYER and yes for EMBED with accurate reasoning matching the answer key.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q09",
+      "category": "common_change",
+      "question": "I need to change rotation / PiP / fullscreen behavior for video playback. Which files do I need to touch?",
+      "answer_key": "All five host fragments (ContentFragment, EventFragment, WatchVideoFragment, LiveBroadcastVideoFragment, LiveBroadcastEventFragment), plus PlayerOrientationHelper (the shared guards) and WslExoPlayer.setFullScreen. Note that ContentFragment diverges from the shared lifecycle skeleton, so it must be handled separately.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the `common_changes` section of the capability doc, changing rotation / PiP / fullscreen behavior requires touching these files:\n\n- `app/src/main/java/com/wsl/helpers/PlayerOrientationHelper.java`\n- `app/src/main/java/com/wsl/android/WslExoPlayer.java`\n- `app/src/main/java/com/wsl/fragments/ContentFragment.java`\n- `app/src/main/java/com/wsl/fragments/EventFragment.java`\n- `app/src/main/java/com/wsl/fragments/WatchVideoFragment.java`\n- `app/src/main/java/com/wsl/fragments/LiveBroadcastVideoFragment.java`\n- `app/src/main/java/com/wsl/ui/livebroadcastevent/LiveBroadcastEventFragment.java`\n\nTwo important caveats to keep in mind: `ContentFragment` does **not** follow the shared `onConfigurationChanged` skeleton (it hosts article + video in a list view and has a divergent flow), so don't treat it as interchangeable with the other four. Also, `SingleActivity.java` owns PiP entry (`onUserLeaveHint`) and the `isExitingPipMode` flag that guards behavior in several of these files, so you'll likely need to review it even if it's not always directly edited.",
+          "input_tokens": 3003,
+          "output_tokens": 338,
+          "judge_score": 2,
+          "judge_reasoning": "Lists all five fragments plus PlayerOrientationHelper and WslExoPlayer, and correctly notes ContentFragment's divergence.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the codebase, here are the files you'd need to touch:\n\n1. **`WslExoPlayer.java`** — Core fullscreen/orientation logic lives here: `setFullScreen()`, `scheduleOrientationLockRelease()`, `cancelOrientationLockRelease()`, and `onEnterPictureInPicture()`. This is the primary place to change *how* orientation locks are applied during fullscreen transitions.\n\n2. **`PlayerOrientationHelper.java`** — The single source of truth for suppression decisions: `shouldSuppressOrientationSwitch()` (guards `onConfigurationChanged`) and `shouldSuppressPortraitLock()` (guards the portrait lock in `STATE_NOT_FULLSCREEN`). Change the suppression rules here.\n\n3. **`SingleActivity.java`** — Owns the PiP lifecycle (`onPictureInPictureModeChanged`, `onUserLeaveHint`, `isExitingPipMode()`), the PiP exit orientation reset (`SCREEN_ORIENTATION_SENSOR_PORTRAIT`), and the delayed SENSOR release after PiP exit (`PIP_EXIT_ORIENTATION_RELEASE_MS`).\n\n4. **`WatchVideoFragment.java`** (and sibling video fragments) — Each fragment's `onConfigurationChanged` calls `PlayerOrientationHelper.shouldSuppressOrientationSwitch()` and drives `setFullScreen()`, and `onPlayerStateChange(STATE_NOT_FULLSCREEN)` calls `shouldSuppressPortraitLock()`. You'd touch these if per-fragment rotation behavior needs to diverge.",
+          "input_tokens": 60791,
+          "output_tokens": 386,
+          "judge_score": 1,
+          "judge_reasoning": "Correctly identifies PlayerOrientationHelper, WslExoPlayer.setFullScreen, and WatchVideoFragment, but only vaguely references 'sibling video fragments' without naming the other four host fragments or noting ContentFragment's divergence; also introduces SingleActivity not in the answer key.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the codebase, here are the files you'd need to touch for rotation/PiP/fullscreen behavior changes:\n\n## Core Files\n\n**`SingleActivity.java`** — PiP lifecycle hub: `onUserLeaveHint()` (PiP entry), `onPictureInPictureModeChanged()` (PiP exit/dismiss), `onResume()` (PiP exit orientation reset), `mStoppedWhileInPip` flag, and `PIP_EXIT_ORIENTATION_RELEASE_MS` constant.\n\n**`WslExoPlayer.java`** — Fullscreen dialog management (`setFullScreen()`), orientation lock/release scheduling (`scheduleOrientationLockRelease()`, `cancelOrientationLockRelease()`), and `onEnterPictureInPicture()`. This is where LANDSCAPE/PORTRAIT locks are actually applied.\n\n## Policy/Helper Files\n\n**`PlayerOrientationHelper.java`** — Centralized decision logic for suppressing orientation switches (`shouldSuppressOrientationSwitch()`) and portrait locks (`shouldSuppressPortraitLock()`). Both guards are called from all video fragments.\n\n## Fragment Files (all consume `PlayerOrientationHelper`)\n\n- **`EventFragment.java`** — `onConfigurationChanged()`, `onPlayerStateChange(STATE_NOT_FULLSCREEN)`, `positionVideoPlayer()`\n- **`ContentFragment.java`** — Same three methods\n- **`WatchVideoFragment.java`** — `onConfigurationChanged()`, `onPlayerStateChange(STATE_NOT_FULLSCREEN)`, `onStop()` (ad-resume suppress)\n- **`LiveBroadcastVideoFragment.java`** — `onConfigurationChanged()`\n- **`LiveBroadcastEventFragment.java`** — `onConfigurationChanged()`, `onStop()`\n\nFor most behavior changes, start with `PlayerOrientationHelper` (policy) and `WslExoPlayer.setFullScreen()` (mechanism), then propagate to whichever fragments are affected.",
+          "input_tokens": 126532,
+          "output_tokens": 489,
+          "judge_score": 2,
+          "judge_reasoning": "Covers all five fragments, PlayerOrientationHelper guards, and WslExoPlayer.setFullScreen, and notes ContentFragment as a distinct case; the extra SingleActivity detail is consistent and not incorrect.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Based on the `common_changes` section of the agent context, changing rotation / PiP / fullscreen behavior requires touching these files:\n\n1. `app/src/main/java/com/wsl/helpers/PlayerOrientationHelper.java`\n2. `app/src/main/java/com/wsl/android/WslExoPlayer.java`\n3. `app/src/main/java/com/wsl/fragments/ContentFragment.java`\n4. `app/src/main/java/com/wsl/fragments/EventFragment.java`\n5. `app/src/main/java/com/wsl/fragments/WatchVideoFragment.java`\n6. `app/src/main/java/com/wsl/fragments/LiveBroadcastVideoFragment.java`\n7. `app/src/main/java/com/wsl/ui/livebroadcastevent/LiveBroadcastEventFragment.java`\n\nAnd typically also `SingleActivity.java` for PiP entry/exit logic (`onUserLeaveHint`, `onPictureInPictureModeChanged`, `isExitingPipMode`). Note that `ContentFragment` diverges from the shared `onConfigurationChanged` skeleton used by the other four host fragments, so treat it separately.",
+          "input_tokens": 63670,
+          "output_tokens": 306,
+          "judge_score": 2,
+          "judge_reasoning": "Covers all five host fragments, PlayerOrientationHelper, WslExoPlayer, and correctly notes ContentFragment diverges; extra SingleActivity mention is reasonable and not wrong.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "common_change",
+      "question": "What is the risk of calling mVideoPlayer.hide() unconditionally in onDestroyView during a rotation that happens while an ad is playing?",
+      "answer_key": "It would break the in-progress ad. The IMA AdDisplayContainer cannot re-attach during the same ad play, so onDestroyView preserves the ad state across a rotation-driven destroy (guarded by shouldPreserveAdStateOnDestroyView) and only calls hide() when preservation is not needed. An unconditional hide() would drop the ad container and break mid-ad rotation.",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "## Risk: Breaking Mid-Ad Rotation\n\nCalling `mVideoPlayer.hide()` unconditionally in `onDestroyView` during a rotation while an ad is playing will break the IMA `AdDisplayContainer`.\n\nThe gotcha documented explicitly in the capability context states: **IMA cannot re-attach during the same ad play**. The `AdDisplayContainer` must be preserved across a rotation-driven destroy, which is why `WatchVideoFragment` guards the hide call with `shouldPreserveAdStateOnDestroyView` (lines 228-239). Calling `hide()` unconditionally tears down the container, and since IMA cannot re-attach mid-ad, the ad playback breaks — likely resulting in a stuck or broken ad state after the rotation completes.\n\nThe fix is to replicate the `shouldPreserveAdStateOnDestroyView` guard before calling `hide()`, exactly as the canonical `WatchVideoFragment` does.",
+          "input_tokens": 3009,
+          "output_tokens": 215,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies that unconditional hide() breaks the ad because IMA can't re-attach mid-ad, and references the shouldPreserveAdStateOnDestroyView guard.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based on the code, calling `mVideoPlayer.hide()` unconditionally during a rotation-driven `onDestroyView` while an ad is playing has a specific documented risk: it destroys the IMA `AdDisplayContainer`, which **cannot be re-attached during the same ad play** per IMA SDK docs.\n\nThis is exactly why `shouldPreserveAdStateOnDestroyView()` exists. In `WatchVideoFragment.onDestroyView()`, the code guards against this:\n\n```java\nboolean preserve = mVideoPlayer != null && mVideoPlayer.shouldPreserveAdStateOnDestroyView();\n// ...\nif (!preserve) {\n    mVideoPlayer.hide();\n}\n```\n\nAnd `WslExoPlayer.shouldPreserveAdStateOnDestroyView()` returns `true` only when all four conditions hold: the context is a `SingleActivity`, the activity `isChangingConfigurations()` (i.e., it's a rotation), a client-side IMA ad is active (`mAdSession.isClientSideActive()`), and `mGoogleVideoAdsManager != null`.\n\nIf `hide()` were called unconditionally, the ad container would be torn down mid-rotation, and when the fragment and player are recreated, IMA would be unable to resume rendering the same ad — resulting in a broken/stuck ad state or the ad being silently skipped.",
+          "input_tokens": 60797,
+          "output_tokens": 322,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies that unconditional hide() would destroy the AdDisplayContainer that cannot re-attach mid-ad, explains the shouldPreserveAdStateOnDestroyView guard, matching the answer key.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "## Risk of Unconditional `hide()` During Ad-Playing Rotation\n\nThe core risk is **destroying the IMA `AdDisplayContainer` mid-ad**, which per IMA docs cannot be re-attached during the same ad play.\n\n### What `hide()` does during an active client-side ad\n\nFrom `WslExoPlayer.hide()`:\n```java\nif (mAdSession.isClientSideActive() && mGoogleVideoAdsManager != null) {\n    mGoogleVideoAdsManager.destroy();\n    mClientSideAdRequested = false;\n}\nmAdSession.reset();\n```\n\nIt also calls `resetVideoPlaybackArgs()` which nulls `mArgs`, `mVideoId`, `mVideoUrl`. So after `hide()`:\n- The IMA `AdsManager` is destroyed\n- `mVideoUrl` is null, so `onActivityResume()` → `resumePlayback()` silently no-ops\n- `mVideoId` is null, so the same-video-ID bail in `initVideoPlayback()` won't fire — a fresh preroll gets requested on the recreated fragment\n\n### The guard that exists\n\nBoth `WatchVideoFragment.onDestroyView()` and `LiveBroadcastEventFragment.onDestroyView()` already guard this:\n```java\nboolean preserve = mVideoPlayer != null && mVideoPlayer.shouldPreserveAdStateOnDestroyView();\n// ...\nif (!preserve) {\n    mVideoPlayer.hide();\n}\n```\n\n`shouldPreserveAdStateOnDestroyView()` returns true only when `isChangingConfigurations() && isClientSideActive() && mGoogleVideoAdsManager != null`. `ContentFragment.onDestroyView()` has the same guard.\n\n### Consequence of missing the guard\n\nIf `hide()` is called unconditionally during a rotation while a preroll plays, the user experiences: the ad abruptly stops, the black screen/keyart reappears briefly, then a **second preroll request fires** on the recreated fragment — resulting in a double-ad impression or a jarring restart of the same ad from the beginning.",
+          "input_tokens": 126538,
+          "output_tokens": 502,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the risk of breaking the in-progress ad by destroying the IMA AdDisplayContainer, references the shouldPreserveAdStateOnDestroyView guard, and aligns with the answer key.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Calling `hide()` unconditionally during a rotation-driven `onDestroyView` while an ad is playing will destroy the IMA `AdDisplayContainer`. Per IMA's own documentation, a destroyed container **cannot be re-attached during the same ad play**, so when the new view is created after the rotation the ad will be broken — the container is gone and IMA cannot recover it.\n\nThe codebase handles this explicitly via `shouldPreserveAdStateOnDestroyView()`: `WatchVideoFragment.onDestroyView` checks this flag and skips `hide()` when it returns true (i.e., when `isChangingConfigurations() == true` AND a client-side IMA ad is active with a live `AdsManager`). The `hide()` call is only made when `preserve` is false, protecting the `AdDisplayContainer` across the rotation teardown/recreate cycle.",
+          "input_tokens": 63676,
+          "output_tokens": 206,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the broken ad due to AdDisplayContainer not re-attaching, and the shouldPreserveAdStateOnDestroyView guard logic.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "discovery",
+      "question": "Where in the source tree do the player backend implementations (the ExoPlayer, base, and embed players) actually live?",
+      "answer_key": "They live in com/wsl/android/ : WslExoPlayer.java, WslBaseVideoPlayer.java, and WslEmbedVideoPlayer.java. (Note: some human-facing docs point at com/wsl/players/, which is incorrect/stale.)",
+      "is_control": false,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "Based on the gotchas section in the context:\n\n> \"The human docs' code map points player implementations at `com/wsl/players/`; they actually live in `com/wsl/android/` (`WslExoPlayer`, `WslBaseVideoPlayer`, `WslEmbedVideoPlayer`).\"\n\nThe three player backend implementations live in `app/src/main/java/com/wsl/android/`, not in `com/wsl/players/` as the human-written documentation incorrectly states.",
+          "input_tokens": 3002,
+          "output_tokens": 121,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies the location as com/wsl/android/ with the three named files and notes the stale docs pointing at com/wsl/players/.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "Based solely on the provided context, the source files reference these player implementation classes but only reveal their package locations:\n\n- **`WslExoPlayer`** lives at `app/src/main/java/com/wsl/android/WslExoPlayer.java` (explicitly provided in context)\n- **`WslEmbedVideoPlayer`** is in the same package `com.wsl.android` (imported as `com.wsl.android.WslEmbedVideoPlayer` in `SingleActivity.java`)\n- **`WslBaseVideoPlayer`** is also in `com.wsl.android` (referenced as the superclass `extends WslBaseVideoPlayer` in `WslExoPlayer.java`)\n\nSo all three live under `app/src/main/java/com/wsl/android/`, but only the `WslExoPlayer.java` file's full source is available in the provided context. The actual source files for `WslBaseVideoPlayer` and `WslEmbedVideoPlayer` were not included.",
+          "input_tokens": 60790,
+          "output_tokens": 238,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies all three player classes living in com/wsl/android/.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the context provided, the three player backend implementations live in the `app/src/main/java/com/wsl/android/` package:\n\n- **`WslExoPlayer.java`** — the ExoPlayer-based implementation with IMA ads, DAI, and Chromecast support\n- **`WslBaseVideoPlayer.java`** — the abstract base class that both `WslExoPlayer` and `WslEmbedVideoPlayer` extend\n- **`WslEmbedVideoPlayer.java`** — the WebView-based embed player (used for YouTube embeds and other embed URLs)\n\nThe fourth player type, `AndroidYoutubePlayerFragment`, lives in `app/src/main/java/com/wsl/fragments/` rather than in the `android` package, as it is fragment-based rather than a direct player implementation.",
+          "input_tokens": 126531,
+          "output_tokens": 199,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies com/wsl/android/ and all three player files.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "Based on the gotchas section of the agent context doc:\n\n> \"The human docs' code map points player implementations at `com/wsl/players/`; they actually live in `com/wsl/android/` (`WslExoPlayer`, `WslBaseVideoPlayer`, `WslEmbedVideoPlayer`).\"\n\nThis is confirmed by the source files provided, which show `WslExoPlayer` at `app/src/main/java/com/wsl/android/WslExoPlayer.java` and `WslEmbedVideoPlayer` referenced via `com.wsl.android.WslEmbedVideoPlayer` in the imports.",
+          "input_tokens": 63669,
+          "output_tokens": 152,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly identifies com/wsl/android/ location, the three files, and the stale docs note.",
+          "judge_parsed_ok": true
+        }
+      }
+    },
+    {
+      "id": "Q12",
+      "category": "control",
+      "question": "What is the exact deep link URL format that opens a specific heat replay directly in the app?",
+      "answer_key": "This information is NOT present in the provided video-playback context. Deep link parsing lives in AspDeepLinkHelper, which is a different capability and not included here. The correct response is to say the information is not available in the provided context, not to fabricate a URL format.",
+      "is_control": true,
+      "conditions": {
+        "A_agent_context_only": {
+          "response": "The provided context does not contain any information about deep link URL formats. The capability documentation covers video playback architecture (player ownership, PiP, fullscreen, orientation handling) but does not mention deep linking, URL schemes, or how heat replays are routed into the app.\n\nYou'd need to check a different part of the codebase — likely the navigation/routing or manifest configuration — for that information.",
+          "input_tokens": 2996,
+          "output_tokens": 89,
+          "judge_score": 2,
+          "judge_reasoning": "The response explicitly states the deep link information is not in the provided context and does not fabricate a URL format.",
+          "judge_parsed_ok": true
+        },
+        "B_curated": {
+          "response": "The provided codebase context does not contain information about deep link URL formats. The code references `AspDeepLinkHelper.getFragment()` and `AspDeepLinkHelper.resolveIntentToDeferredFragment()` for handling deep links, but the implementation of those methods is not included in the provided context, so the specific URL format for opening a heat replay cannot be determined from what's here.",
+          "input_tokens": 60784,
+          "output_tokens": 91,
+          "judge_score": 2,
+          "judge_reasoning": "The response correctly states the deep link URL format is not in the provided context and does not fabricate one.",
+          "judge_parsed_ok": true
+        },
+        "B_full": {
+          "response": "Based on the provided context, I cannot answer this question. The codebase shows that `LiveBroadcastEventFragment` accepts parameters like `PARAM_REQUIRED_EVENT_ID`, `PARAM_OPTIONAL_HEAT_ID`, and `PARAM_OPTIONAL_HEAT_REPLAY_PROVIDER_VIDEO_ID`, and defines `INTENT_PATH = \"live-event\"`, but the actual deep link URL format (domain, scheme, full URL structure) is not present in the provided files. That information would be in `AspDeepLinkHelper` or manifest/intent-filter configuration, which are not included in the context.",
+          "input_tokens": 126525,
+          "output_tokens": 144,
+          "judge_score": 2,
+          "judge_reasoning": "Correctly refuses to fabricate, noting deep link format is not in context and points to AspDeepLinkHelper.",
+          "judge_parsed_ok": true
+        },
+        "C_combined": {
+          "response": "The provided context (source files and agent-context.md) contains no information about deep link URL formats or how deep links map to specific fragments/content types. The code references `AspDeepLinkHelper.getFragment()` and `AspDeepLinkHelper.resolveIntentToDeferredFragment()`, but the implementation of those classes is not included in the context provided.",
+          "input_tokens": 63663,
+          "output_tokens": 85,
+          "judge_score": 2,
+          "judge_reasoning": "The response correctly states the deep link URL format is not in the provided context and notes that AspDeepLinkHelper's implementation is not included, without fabricating a URL.",
+          "judge_parsed_ok": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "A_agent_context_only": {
+      "avg_input_tokens": 3005,
+      "avg_output_tokens": 181,
+      "total_input_tokens": 36056,
+      "accuracy_total": 24,
+      "accuracy_max": 24,
+      "accuracy_pct": 100,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 6,
+          "max": 6
+        },
+        "common_change": {
+          "sum": 4,
+          "max": 4
+        },
+        "discovery": {
+          "sum": 2,
+          "max": 2
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    },
+    "B_curated": {
+      "avg_input_tokens": 60793,
+      "avg_output_tokens": 254,
+      "total_input_tokens": 729512,
+      "accuracy_total": 22,
+      "accuracy_max": 24,
+      "accuracy_pct": 92,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 5,
+          "max": 6
+        },
+        "common_change": {
+          "sum": 3,
+          "max": 4
+        },
+        "discovery": {
+          "sum": 2,
+          "max": 2
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    },
+    "B_full": {
+      "avg_input_tokens": 126534,
+      "avg_output_tokens": 322,
+      "total_input_tokens": 1518404,
+      "accuracy_total": 24,
+      "accuracy_max": 24,
+      "accuracy_pct": 100,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 6,
+          "max": 6
+        },
+        "common_change": {
+          "sum": 4,
+          "max": 4
+        },
+        "discovery": {
+          "sum": 2,
+          "max": 2
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    },
+    "C_combined": {
+      "avg_input_tokens": 63672,
+      "avg_output_tokens": 191,
+      "total_input_tokens": 764060,
+      "accuracy_total": 24,
+      "accuracy_max": 24,
+      "accuracy_pct": 100,
+      "per_category": {
+        "invariant": {
+          "sum": 6,
+          "max": 6
+        },
+        "contract": {
+          "sum": 4,
+          "max": 4
+        },
+        "gotcha": {
+          "sum": 6,
+          "max": 6
+        },
+        "common_change": {
+          "sum": 4,
+          "max": 4
+        },
+        "discovery": {
+          "sum": 2,
+          "max": 2
+        },
+        "control": {
+          "sum": 2,
+          "max": 2
+        }
+      }
+    }
+  },
+  "token_ratio_vs_A": {
+    "A_agent_context_only": 1,
+    "B_curated": 20.23,
+    "B_full": 42.11,
+    "C_combined": 21.19
+  }
+}

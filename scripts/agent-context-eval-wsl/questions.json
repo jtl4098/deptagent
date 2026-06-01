@@ -1,0 +1,80 @@
+{
+  "capability": "video-playback",
+  "repo": "wsl-android",
+  "answer_model": "claude-sonnet-4-6",
+  "judge_model": "claude-opus-4-8",
+  "questions": [
+    {
+      "id": "Q01",
+      "category": "invariant",
+      "question": "Where is the single video player instance owned, and how do the five host fragments obtain a reference to it?",
+      "answer_key": "The player is owned at the Activity level by SingleActivity (mVideoPlayer), with one instance per PlayerType. Host fragments do not instantiate their own player; they look it up at runtime via SingleActivity.getVideoPlayer(...), and re-attach to the same instance in onResume after a rotation-driven recreate."
+    },
+    {
+      "id": "Q02",
+      "category": "invariant",
+      "question": "Which component enters Picture-in-Picture mode, the Activity or the host fragments? Where does that happen?",
+      "answer_key": "The Activity enters PiP, not the fragments. SingleActivity calls enterPictureInPictureMode in onUserLeaveHint. Fragments only react to onPictureInPictureModeChanged for UI adjustments; they never enter PiP themselves."
+    },
+    {
+      "id": "Q03",
+      "category": "invariant",
+      "question": "In a host fragment's onConfigurationChanged, what must be checked before calling setFullScreen, and why?",
+      "answer_key": "It must call PlayerOrientationHelper.shouldSuppressOrientationSwitch first. That returns true while a PiP exit is in progress (isExitingPipMode); during the PiP-to-full window resize an orientation change must not trigger a fullscreen toggle. When suppressed, the fragment just calls positionVideoPlayer() and returns instead of toggling fullscreen."
+    },
+    {
+      "id": "Q04",
+      "category": "contract",
+      "question": "What does WslExoPlayer.setFullScreen(boolean) do when invoked with the same fullscreen state the player is already in?",
+      "answer_key": "It early-returns and does nothing: the method begins with `if (mIsFullScreen == fullScreen) return;`. Repeated calls in the same state are no-ops."
+    },
+    {
+      "id": "Q05",
+      "category": "contract",
+      "question": "Describe the contract of SingleActivity.getVideoPlayer(PlayerType): its return type, how it treats a null argument, and its side effects.",
+      "answer_key": "It returns a @Nullable AspVideoPlayer (may be null if the requested player fragment is not found). A null PlayerType argument is treated as CURRENT. Side effects: it hides the other two player backends, and toggles the Chromecast menu item visibility (on only for EXOPLAYER, off for YOUTUBE and EMBED)."
+    },
+    {
+      "id": "Q06",
+      "category": "gotcha",
+      "question": "Why might the fullscreen video player and its controls fail to appear in a uiautomator or `android layout` hierarchy dump?",
+      "answer_key": "Because fullscreen is hosted in a separate Dialog window, not the Activity window. uiautomator / android layout only traverse the Activity window, so the Dialog-hosted player and controls are missing. System bars are also hidden on the Dialog's window rather than the Activity's."
+    },
+    {
+      "id": "Q07",
+      "category": "gotcha",
+      "question": "During a PiP exit, why does setFullScreen(false) skip resetLayoutToDefaultDimensions, and what finalizes the player layout instead?",
+      "answer_key": "During PiP exit the window is still transitioning, so getDisplayDimensions() returns PiP-era (tiny) values; calling resetLayoutToDefaultDimensions then would shrink the container. The code skips it when isExitingPipMode is true, relying on the container's preserved pre-PiP dimensions, and onResume()'s positionVideoPlayer() finalizes the layout once the window is full size. For the same reason, the STATE_NOT_FULLSCREEN observer callback is also suppressed during PiP exit."
+    },
+    {
+      "id": "Q08",
+      "category": "gotcha",
+      "question": "For an EXOPLAYER-type player, should a host fragment apply the PORTRAIT lock in onPlayerStateChange(STATE_NOT_FULLSCREEN)? What about an EMBED player?",
+      "answer_key": "No for EXOPLAYER: WslExoPlayer manages its own orientation lock with a delayed SENSOR release, so a second fragment-side lock would break that release and trap the user in portrait. shouldSuppressPortraitLock returns true for non-EMBED players precisely to skip it. EMBED (e.g., YouTube) players do NOT route through WslExoPlayer.setFullScreen, so they still need the fragment-side PORTRAIT lock."
+    },
+    {
+      "id": "Q09",
+      "category": "common_change",
+      "question": "I need to change rotation / PiP / fullscreen behavior for video playback. Which files do I need to touch?",
+      "answer_key": "All five host fragments (ContentFragment, EventFragment, WatchVideoFragment, LiveBroadcastVideoFragment, LiveBroadcastEventFragment), plus PlayerOrientationHelper (the shared guards) and WslExoPlayer.setFullScreen. Note that ContentFragment diverges from the shared lifecycle skeleton, so it must be handled separately."
+    },
+    {
+      "id": "Q10",
+      "category": "common_change",
+      "question": "What is the risk of calling mVideoPlayer.hide() unconditionally in onDestroyView during a rotation that happens while an ad is playing?",
+      "answer_key": "It would break the in-progress ad. The IMA AdDisplayContainer cannot re-attach during the same ad play, so onDestroyView preserves the ad state across a rotation-driven destroy (guarded by shouldPreserveAdStateOnDestroyView) and only calls hide() when preservation is not needed. An unconditional hide() would drop the ad container and break mid-ad rotation."
+    },
+    {
+      "id": "Q11",
+      "category": "discovery",
+      "question": "Where in the source tree do the player backend implementations (the ExoPlayer, base, and embed players) actually live?",
+      "answer_key": "They live in com/wsl/android/ : WslExoPlayer.java, WslBaseVideoPlayer.java, and WslEmbedVideoPlayer.java. (Note: some human-facing docs point at com/wsl/players/, which is incorrect/stale.)"
+    },
+    {
+      "id": "Q12",
+      "category": "control",
+      "question": "What is the exact deep link URL format that opens a specific heat replay directly in the app?",
+      "answer_key": "This information is NOT present in the provided video-playback context. Deep link parsing lives in AspDeepLinkHelper, which is a different capability and not included here. The correct response is to say the information is not available in the provided context, not to fabricate a URL format."
+    }
+  ]
+}
