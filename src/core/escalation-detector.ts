@@ -16,7 +16,11 @@ const ESCALATION_KEYWORDS = [
 export function shouldEscalate(message: string): { escalate: boolean; reason: string } {
   const lower = message.toLowerCase();
   for (const keyword of ESCALATION_KEYWORDS) {
-    if (lower.includes(keyword)) {
+    // Match on word boundaries rather than raw substrings, so unrelated
+    // words like "management" no longer trigger the "manager" keyword.
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`\\b${escaped}\\b`);
+    if (pattern.test(lower)) {
       return { escalate: true, reason: `Employee requested human help: "${keyword}"` };
     }
   }
