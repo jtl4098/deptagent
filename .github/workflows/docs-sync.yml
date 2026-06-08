@@ -49,124 +49,32 @@ jobs:
           echo "after_short=$(git rev-parse --short "$AFTER")" >> "$GITHUB_OUTPUT"
           echo "Diff range: $BEFORE..$AFTER"
 
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Run docs-sync agent
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: |
-            --model claude-sonnet-4-6
-            --max-turns 40
-            --allowedTools Read,Edit,Write,Bash,Grep,Glob
-          prompt: |
-            You are the docs-sync maintenance agent for this repository. A
-            merge to `main` changed files under `src/**`. Your job is to bring
-            the in-repo documentation back in sync with the code, then hand off
-            a PR body. A later workflow step opens the actual pull request —
-            you must NOT run git commit, git push, or gh.
-
-            The merge diff range is:
-              BEFORE = ${{ steps.range.outputs.before }}
-              AFTER  = ${{ steps.range.outputs.after }}
-
-            Follow these steps exactly.
-
-            ## Step 1 — Read the diff
-            Run `git diff --stat ${{ steps.range.outputs.before }} ${{ steps.range.outputs.after }} -- src/`
-            to see which source files changed. Then read the detailed diff for
-            the changed files with `git diff <before> <after> -- <paths>` as
-            needed. Focus on src/** only.
-
-            ## Step 2 — Route changed files to capabilities
-            Read `docs/_agent-index.md`. For each changed src path, apply the
-            mappings using **longest-match-wins by pattern length, not by list
-            order** (this rule is load-bearing — a nested route under a broader
-            one must resolve to the more specific capability). Then:
-              - Files matching a mapping -> note the affected capability.
-              - Files in `unmapped_intentional` -> ignore.
-              - Files matching no mapping and not in `unmapped_intentional` ->
-                collect them as UNMAPPED (you will list these in the PR body;
-                do NOT invent docs for them).
-
-            ## Step 3 — Read the affected docs
-            For each affected capability, read
-            `docs/capabilities/<slug>/agent-context.md`. Also read that
-            capability's `overview.md` / `architecture.md` if present and the
-            diff plausibly affects them.
-
-            ## Step 4 — Classify and edit (docs/ ONLY)
-            Classify the change per capability:
-              - No semantic change (pure refactor, rename, formatting, comment
-                churn) -> make NO edits for that capability.
-              - Behavior change -> edit the affected docs so they match the new
-                behavior. Whenever you edit a capability's `agent-context.md`,
-                advance its `last_synced_from` field to `${{ steps.range.outputs.after_short }}`.
-              - Invariant suspect -> the diff appears to violate a stated
-                invariant. Still update the docs to reflect reality, AND record
-                the suspected invariant by its stable `id` for the PR body.
-
-            Hard rules (do not break these):
-              - Edit files under `docs/` ONLY. Never edit `src/`.
-              - Use domain language in prose, not raw symbol dumps.
-              - Never create a fifth human-readable doc type inside a capability
-                folder (the set is overview / architecture / decisions /
-                playbook; `agent-context.md` is a separate LLM layer).
-              - Prefer accuracy over completeness. If you are unsure whether the
-                diff changes documented behavior, say so in the PR body rather
-                than fabricating an update.
-              - If a changed area's capability has no `agent-context.md` yet, do
-                not create one here — note it under UNMAPPED instead.
-
-            ## Step 5 — Write the PR body, then stop
-            Write a markdown PR body to `.doc-sync-pr-body.md` in the repository
-            root (NOT under docs/, so it is never committed). The reader is a
-            human reviewer who has NOT read the code diff that triggered this
-            run. Your job is to make the PR self-explanatory: connect each code
-            change to the doc change it caused and explain the reasoning, as a
-            cause -> effect narrative, not a bare changelog. Use exactly these
-            sections:
-
-              ## Summary
-              2-4 sentences in plain domain language: what behavior changed in
-              this merge (range ${{ steps.range.outputs.after_short }}) and the
-              net effect on the docs. Do not dump raw symbol names.
-
-              ## Why these docs changed
-              The most important section. For EACH capability you edited, write
-              a block that links cause to effect:
-
-                ### <capability-slug>
-                - **Code change:** which src files changed and what behavior
-                  changed, in plain language (cite paths, but explain — do not
-                  just list files).
-                - **Doc update:** which doc files and fields you edited (e.g.
-                  `agent-context.md` gotchas / invariants, `architecture.md`
-                  sequence diagram, `overview.md` mental model).
-                - **Why:** the reasoning tying the doc edit to the code change —
-                  why the old doc was now wrong or incomplete, and how the new
-                  text reflects reality.
-
-              If you made no edits at all, write: "No documentation changes were
-              warranted: the diff was a refactor / rename / formatting change
-              with no effect on documented behavior." and briefly say why.
-
-              ## Suspected invariant violations
-              For each: `<capability>:<invariant-id>` — the invariant statement,
-              the specific change that looks like it breaks it, and what the
-              reviewer should verify. If none, write "None."
-
-              ## Unmapped changes
-              src paths that matched no capability and are not in
-              `unmapped_intentional`: list them and recommend adding a mapping +
-              `agent-context.md`, or extending `unmapped_intentional`. If none,
-              write "None."
-
-              ---
-              _Generated by the docs-sync workflow from merge
-              ${{ steps.range.outputs.after_short }}. Review for accuracy before
-              merging; push corrections to this branch as normal commits._
-
-            Then STOP. Do not commit, push, or open a PR — the workflow handles
-            that. Leave all your doc edits in the working tree.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The diff range is passed through the environment; the prompt
+          # instructs the agent to use these in its git commands. The agent's
+          # Bash tool inherits this environment.
+          BEFORE_SHA: ${{ steps.range.outputs.before }}
+          AFTER_SHA: ${{ steps.range.outputs.after }}
+          AFTER_SHORT: ${{ steps.range.outputs.after_short }}
+        run: |
+          set -eo pipefail
+          # claude-code-action@v1 rejects the `push` event, so we drive the
+          # CLI headlessly instead — it is event-agnostic. Tools are scoped to
+          # exactly what the prompt needs (read/edit/write files, run git);
+          # NOT --dangerously-skip-permissions. In headless mode any tool
+          # outside this allowlist is auto-denied without an interactive
+          # prompt, so the run never hangs and the agent cannot run arbitrary
+          # shell. The prompt further constrains edits to docs/ and forbids
+          # commit/push/gh.
+          timeout 600 claude -p "$(cat .github/docs-sync-prompt.md)" \
+            --model claude-sonnet-4-6 \
+            --max-turns 40 \
+            --allowedTools "Read" "Edit" "Write" "Grep" "Glob" "Bash(git:*)"
 
       - name: Detect doc changes
         id: detect
