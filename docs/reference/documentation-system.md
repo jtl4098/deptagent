@@ -7,9 +7,9 @@ page is the canonical record of how that system is designed, what was
 considered and rejected, and how it keeps itself in sync when the code
 changes.
 
-> Status: Phase 1 shipped. Agent-context layer shipped. Phase 2 designed,
-> not yet built. See **Validation** below for the empirical results that
-> back the design decisions.
+> Status: Phase 1 shipped. Agent-context layer shipped. Phase 2 shipped.
+> See **Validation** below for the empirical results that back the design
+> decisions.
 
 ## Why this approach
 
@@ -55,7 +55,7 @@ flowchart TB
         Merge[Merge to main]
     end
 
-    subgraph Sync["Maintenance — docs-sync.yml (DESIGNED)"]
+    subgraph Sync["Maintenance — docs-sync.yml (SHIPPED)"]
         Sync1["trigger: push to main<br/>paths: src/**"]
         Sync2[claude-code-action reads diff,<br/>agent-context.md,<br/>_agent-index.md]
         DocPR[Doc-only PR opened<br/>by Claude]
@@ -82,7 +82,7 @@ The two workflows are disjoint by paths-filter:
 | Workflow | Triggers on | Ignores | Status |
 |---|---|---|---|
 | `docs.yml` | `docs/**`, `mkdocs.yml`, `requirements-docs.txt`, `.github/workflows/docs.yml` | `src/**`, everything else | **Shipped** |
-| `docs-sync.yml` | `src/**` (post-merge to `main`) | `docs/**` | **Designed (next phase)** |
+| `docs-sync.yml` | `src/**` (post-merge to `main`) | `docs/**` | **Shipped** |
 
 They cannot trigger each other in a loop. A doc-only PR (including
 the ones Phase 2 opens) reaches Phase 1 only. A code-only PR reaches
@@ -120,9 +120,9 @@ The strict build is intentional. A broken cross-reference or invalid
 admonition syntax should fail the deploy, not silently ship a 404 into
 the sidebar.
 
-## Phase 2 — AI-assisted maintenance (designed)
+## Phase 2 — AI-assisted maintenance (shipped)
 
-Source: `.github/workflows/docs-sync.yml` (not yet committed)
+Source: [`.github/workflows/docs-sync.yml`](https://github.com/jtl4098/deptagent/blob/main/.github/workflows/docs-sync.yml)
 
 This workflow uses
 [`anthropics/claude-code-action@v1`](https://github.com/anthropics/claude-code-action).
@@ -179,8 +179,31 @@ review-quality wins above.
      `agent-context.md`.
    - **Invariant suspect** → make the updates AND surface the suspected
      violation prominently in the doc PR body.
-5. Commits all changes on a branch named
-   `docs/sync-from-<merge-sha>` and opens a PR targeting `main`.
+5. Edits the affected docs in the working tree only — it does **not**
+   commit or open the PR itself. It writes an explanatory PR body to a
+   handoff file (`.doc-sync-pr-body.md` at the repo root, never
+   committed) and stops. A deterministic workflow step then checks
+   whether any `docs/` files changed; if so it commits them on a branch
+   named `docs/sync-from-<merge-sha>` and opens a PR targeting `main`
+   using that body. If nothing under `docs/` changed, no PR is opened.
+
+The role split is deliberate. The LLM owns **judgment** (what to change
+and why); branch naming, the "no change → no PR" gate, and PR creation
+are **deterministic shell**. This keeps the agent's surface small and
+the mechanics reproducible — a bad classification produces at worst a
+reviewable doc PR, never a malformed branch or a half-open PR.
+
+### The PR body is written to be self-explanatory
+
+The reviewer of a docs-sync PR has usually not read the code diff that
+triggered it. So the generated PR body is a **cause → effect**
+explanation, not a bare changelog. For each affected capability it
+states: what changed in the code (in domain language), which doc files
+and fields were updated, and the reasoning tying the two together — why
+the old doc was wrong or incomplete and how the new text reflects
+reality. Suspected invariant breaks (cited by stable ID) and unmapped
+paths each get their own section, so a reviewer can act on a drift
+signal before merging.
 
 The prompt enforces hard rules: edit `docs/` only, never `src/`; use
 domain language in prose; never invent a fifth doc type; cite the
