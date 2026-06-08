@@ -47,7 +47,7 @@ export async function runAgent(
     system: systemPrompt,
     messages: [{ role: "user", content: message }],
     tools,
-    stopWhen: stepCountIs(3),
+    stopWhen: stepCountIs(5),
     onStepFinish: async (step) => {
       for (const toolResult of step.toolResults ?? []) {
         if (toolResult.toolName === "create_approval_request") {
