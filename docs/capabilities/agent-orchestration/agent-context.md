@@ -1,7 +1,7 @@
 ---
 capability: agent-orchestration
 version: 1
-last_synced_from: 7adcbcf
+last_synced_from: 92a879f
 
 entry_points:
   - path: src/app/api/chat/route.ts
@@ -25,7 +25,7 @@ invariants:
     statement: "route() never throws to callers. Any error path returns the fallback agent (handbook_agent or first enabled agent)."
     enforced_by: src/core/orchestrator.ts:46-61
   - id: tool-loop-bounded
-    statement: "Agent tool-call loop is capped at 3 steps per request."
+    statement: "Agent tool-call loop is capped at 5 steps per request."
     enforced_by: src/core/agent-runner.ts:50
   - id: escalation-before-routing
     statement: "Both keyword escalation check and existing-open-escalation check run BEFORE the orchestrator. An escalated conversation never reaches an agent."
@@ -52,7 +52,7 @@ contracts:
     side_effects:
       - "Loads knowledge via knowledge-loader (cached per-agent)"
       - "Reads active announcements from DB and prepends them to system prompt"
-      - "One generateText call; up to 3 tool-call steps if tools are bound to the agent"
+      - "One generateText call; up to 5 tool-call steps if tools are bound to the agent"
       - "Captures approvalId from create_approval_request tool output if invoked"
   - symbol: shouldEscalate
     location: src/core/escalation-detector.ts:16

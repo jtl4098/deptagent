@@ -44,7 +44,7 @@ sequenceDiagram
             API->>Run: runAgent(agent, message, convId)
             Run->>DB: loadKnowledgeForAgent + getActiveAnnouncements
             Run->>LLM: system=prompt+knowledge+ann., tools?
-            LLM-->>Run: text (and tool results, up to 3 steps)
+            LLM-->>Run: text (and tool results, up to 5 steps)
             Run-->>API: { response, agentId, approvalId? }
             API->>DB: addMessage(assistant)
             API-->>Employee: { response, agentUsed, approval }
@@ -52,8 +52,8 @@ sequenceDiagram
     end
 ```
 
-The "up to 3 steps" cap on the agent's tool loop is set in `runAgent` via
-`stopWhen: stepCountIs(3)`. It is the only guardrail preventing a runaway
+The "up to 5 steps" cap on the agent's tool loop is set in `runAgent` via
+`stopWhen: stepCountIs(5)`. It is the only guardrail preventing a runaway
 tool-calling loop, so changes to that number should be deliberate.
 
 ## Module responsibilities
@@ -156,7 +156,7 @@ from the handbook/policy agent. A failed route produces the same.
 ## What to read next
 
 - **Decisions (planned):** why the orchestrator is a separate LLM call instead
-  of a function-calling tool router, and why we cap agent tool loops at 3
+  of a function-calling tool router, and why we cap agent tool loops at 5
   steps.
 - **Playbook (planned):** triage steps when employees report being routed to
   the wrong agent.
